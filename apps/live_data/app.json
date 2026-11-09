@@ -1,6 +1,6 @@
 {
   "id": "live_data",
-  "title": "Live Data",
+  "title": "TJM Live Data",
   "description": "Read-only live values from the car and its control units, a trip computer with fuel cost, and gauge screens of your own, one of them as the home-screen widget",
   "version": "1.0.8",
   "vendor": "custom",
@@ -86,7 +86,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Live Data",
+      "title": "TJM Live Data",
       "buttons": [
         [
           "BTN_ACTION",

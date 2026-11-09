@@ -447,9 +447,13 @@ def build(app_id, language='en', preview_only=False):
     # app code
     fetch_assets(adir, spec.get('assets', []))
     for f in os.listdir(adir):
+        # TJM: an app's own kit/ (kit modules it was written for, laid over the kit below), hidden files,
+        # local dependencies and local secrets are never part of the app's files
+        if f == 'kit' or f.startswith('.') or f in ('node_modules', '__pycache__') or f.endswith(('_auth.json', '_push.json')):
+            continue
         if f.endswith('.js'):
             shutil.copy(os.path.join(adir, f), os.path.join(src, 'javascript', 'app.js' if f == 'main.js' else f))
-        elif f.endswith(('.wasm', '.wad')) or f in ('LICENSE', 'NOTICE'):
+        elif f.endswith(('.wasm', '.wad', '_LICENSE.txt')) or f in ('LICENSE', 'NOTICE') or (f.endswith('.png') and f != 'icon.png'):
             # files the app reads as they are (doom: the game as WebAssembly, its data, its licences)
             shutil.copy(os.path.join(adir, f), os.path.join(src, 'javascript', f))
         elif os.path.isdir(os.path.join(adir, f)):
@@ -477,6 +481,12 @@ def build(app_id, language='en', preview_only=False):
             shutil.copytree(p, os.path.join(src, 'javascript', 'kit', f))
         else:
             shutil.copy(p, os.path.join(src, 'javascript', 'kit', f))
+    # TJM: apps imported from other kit versions bring the kit modules they were written for (apps/<id>/kit/):
+    # they replace the kit's own for that app only
+    own_kit = os.path.join(adir, 'kit')
+    if os.path.isdir(own_kit):
+        shutil.copytree(own_kit, os.path.join(src, 'javascript', 'kit'), dirs_exist_ok=True)
+        print('  its own kit modules: %s' % ', '.join(sorted(n[:-3] for n in os.listdir(own_kit) if n.endswith('.js'))))
     if language != 'ru':
         for name in ('ru.json', 'ru.tsv'):
             p = os.path.join(src, 'javascript', 'kit', 'locales', name)

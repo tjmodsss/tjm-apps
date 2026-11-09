@@ -1,6 +1,6 @@
 {
   "id": "dtc_scanner",
-  "title": "Fault Scanner",
+  "title": "TJM Fault Scanner",
   "description": "Read and clear fault memory of every control unit, plus active Check Control messages",
   "version": "2.9.6",
   "vendor": "custom",
@@ -24,7 +24,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Fault Scanner",
+      "title": "TJM Fault Scanner",
       "buttons": [
         ["BTN_SCAN", "Scan now"],
         ["BTN_CLEAR", "Clear all"],

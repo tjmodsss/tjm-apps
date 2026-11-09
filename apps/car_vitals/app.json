@@ -1,6 +1,6 @@
 {
   "id": "car_vitals",
-  "title": "M Vitals",
+  "title": "TJM Vitals",
   "description": "Live engine, thermal, intake / fuel / ignition, tyre and chassis gauges",
   "version": "2.26.0",
   "vendor": "custom",
@@ -63,7 +63,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "M Vitals",
+      "title": "TJM Vitals",
       "buttons": [
         [
           "BTN_PAGE",

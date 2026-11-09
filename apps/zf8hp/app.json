@@ -1,6 +1,6 @@
 {
   "id": "zf8hp",
-  "title": "Transmission Config",
+  "title": "TJM Transmission Config",
   "description": "Transmission Config, experimental ZF 8HP monitor: live data, clutch fill adaptations, shift maps and temperature history",
   "version": "1.5.5",
   "vendor": "custom",
@@ -21,7 +21,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Transmission Config",
+      "title": "TJM Transmission Config",
       "buttons": [
         [
           "BTN_PAGE",

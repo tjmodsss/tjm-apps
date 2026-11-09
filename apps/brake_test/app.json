@@ -1,6 +1,6 @@
 {
   "id": "brake_test",
-  "title": "Brake Test",
+  "title": "TJM Brake Test",
   "description": "100-0 and 200-0 braking distance, peak decel and brake-fade tracking",
   "version": "1.5.19",
   "vendor": "custom",
@@ -18,7 +18,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Brake Test",
+      "title": "TJM Brake Test",
       "buttons": [
         ["BTN_ACTION", "Cancel run"],
         ["BTN_PAGE", "Next page"],

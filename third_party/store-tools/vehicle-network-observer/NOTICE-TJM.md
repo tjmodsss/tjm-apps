@@ -1,0 +1,1 @@
+Vehicle network observer (vehicle-network-observer 0.1.2): from https://github.com/alexp50/bmw-apps (components/vehicle-network-observer), MIT (LICENSE). Unchanged; listed in the TJM Store for the TJM app that needs it.

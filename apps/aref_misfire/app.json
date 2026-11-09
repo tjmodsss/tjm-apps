@@ -1,0 +1,181 @@
+{
+  "id": "aref_misfire",
+  "title": "TJM Misfire Watch",
+  "description": "Logs every misfire the engine counts, per cylinder, across every drive. It reads the engine unit's own misfire counters every few seconds while the engine runs and records each new misfire with the conditions at that moment: rpm, speed, gear, torque, coolant and drive mode. Shows this drive per cylinder, all-time totals, the DME's 10-drive average, a misfire log and a list of drives, and exports CSV. Finds a weak coil or worn plug early. Read-only. Starts with the car.",
+  "version": "0.1.0",
+  "vendor": "TJM",
+  "loggingId": "OB08",
+  "mguAppStartType": "autostart",
+  "startWidget": {
+    "comment": "Home-screen widget (kit/runtime/homewidget.js): the big size is a 384 x 256 picture main.js draws, the small size two text lines.",
+    "name": "Misfire Watch",
+    "layout": "LT_Table_OnlineApps_DriveRecorderWidget",
+    "image": "BackgroundImage1",
+    "size": [
+      384,
+      256
+    ],
+    "safe": [
+      0.09,
+      0.1
+    ],
+    "cells": {
+      "ErrorInfo": [
+        false,
+        "Bool"
+      ],
+      "background": [
+        true,
+        "Bool"
+      ],
+      "Title": [
+        "",
+        "Text"
+      ],
+      "ProgressbarVisible": [
+        false,
+        "Bool"
+      ],
+      "Progress": [
+        0,
+        "Float"
+      ],
+      "TextRecordings": [
+        "",
+        "Text"
+      ],
+      "TextCam": [
+        "",
+        "Text"
+      ],
+      "TimeElapsed": [
+        "",
+        "Text"
+      ],
+      "TimeRemaining": [
+        "",
+        "Text"
+      ]
+    }
+  },
+  "signals": {
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ]
+    },
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs",
+      "statusEngineTemperature": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "statusGearboxDrive": "s",
+      "DataPowerTrain2": "s"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "_optional": "the drive mode and engine torque in each misfire's conditions",
+      "statusFESVehicleDynamicSwitchHMI": "rs",
+      "statusActualValueTorque2": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Misfire Watch",
+      "buttons": [
+        [
+          "BTN_VIEW",
+          "Misfire log"
+        ],
+        [
+          "BTN_MORE",
+          "More"
+        ],
+        [
+          "BTN_SAVE",
+          "Export CSV"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "theme",
+      "label": "Colours",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "alert",
+      "label": "Warn at misfires per drive",
+      "type": "number",
+      "default": 10,
+      "steps": [
+        1,
+        5,
+        10,
+        25,
+        50
+      ]
+    },
+    {
+      "key": "every",
+      "label": "Read every",
+      "type": "number",
+      "unit": "s",
+      "default": 4,
+      "steps": [
+        2,
+        4,
+        8,
+        15
+      ]
+    },
+    {
+      "key": "units",
+      "label": "Units",
+      "type": "choice",
+      "default": "us",
+      "options": [
+        [
+          "us",
+          "mph, F"
+        ],
+        [
+          "metric",
+          "km/h, C"
+        ]
+      ]
+    }
+  ]
+}

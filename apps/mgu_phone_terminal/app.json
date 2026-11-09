@@ -1,0 +1,30 @@
+{
+  "id": "mgu_phone_terminal",
+  "title": "TJM Phone Terminal",
+  "description": "Secure QR pairing for a temporary mobile terminal on the MGU",
+  "version": "0.1.5",
+  "vendor": "TJM",
+  "loggingId": "OB19",
+  "iconGlyph": ">_",
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Phone Terminal",
+      "buttons": [
+        [
+          "BTN_START",
+          "New session"
+        ],
+        [
+          "BTN_STOP",
+          "Revoke access"
+        ],
+        [
+          "BTN_ADDRESS",
+          "Next address"
+        ]
+      ]
+    }
+  ]
+}

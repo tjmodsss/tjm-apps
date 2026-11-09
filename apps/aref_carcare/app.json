@@ -1,0 +1,291 @@
+{
+  "id": "aref_carcare",
+  "title": "TJM Car Care",
+  "description": "Your own service intervals, apart from BMW's: engine oil (3,000 mi by default), spark plugs, coils, diff, transfer case and transmission fluid, brake fluid, air and cabin filters, each with how much is left. Done today records the odometer and the date; Done earlier sets a service from before. It never resets BMW's own service reminders, so a dealer's free service still comes due on BMW's schedule. Read-only toward the car.",
+  "version": "0.2.1",
+  "vendor": "TJM",
+  "loggingId": "OB06",
+  "startWidget": {
+    "comment": "Home-screen widget (kit/runtime/homewidget.js): the big size is a 384 x 256 picture main.js draws, the small size two text lines.",
+    "name": "Car Care",
+    "layout": "LT_Table_OnlineApps_DriveRecorderWidget",
+    "image": "BackgroundImage1",
+    "size": [
+      384,
+      256
+    ],
+    "safe": [
+      0.09,
+      0.1
+    ],
+    "cells": {
+      "ErrorInfo": [
+        false,
+        "Bool"
+      ],
+      "background": [
+        true,
+        "Bool"
+      ],
+      "Title": [
+        "",
+        "Text"
+      ],
+      "ProgressbarVisible": [
+        false,
+        "Bool"
+      ],
+      "Progress": [
+        0,
+        "Float"
+      ],
+      "TextRecordings": [
+        "",
+        "Text"
+      ],
+      "TextCam": [
+        "",
+        "Text"
+      ],
+      "TimeElapsed": [
+        "",
+        "Text"
+      ],
+      "TimeRemaining": [
+        "",
+        "Text"
+      ]
+    }
+  },
+  "signals": {
+    "de.bmw.infotainment.KombiIF": {
+      "_optional": "the odometer (statusRangeTankStatus.mileageKilometre); without it only time-based items count",
+      "statusRangeTankStatus": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Car Care",
+      "buttons": [
+        [
+          "BTN_NEXT",
+          "Next item"
+        ],
+        [
+          "BTN_DONE",
+          "Done today"
+        ],
+        [
+          "BTN_EARLIER",
+          "Done earlier"
+        ],
+        [
+          "BTN_KM_UP",
+          "+1,000 mi ago"
+        ],
+        [
+          "BTN_KM_UP2",
+          "+100 mi ago"
+        ],
+        [
+          "BTN_KM_DOWN2",
+          "-100 mi"
+        ],
+        [
+          "BTN_KM_DOWN",
+          "-1,000 mi"
+        ],
+        [
+          "BTN_MO_UP",
+          "+1 month ago"
+        ],
+        [
+          "BTN_MO_DOWN",
+          "-1 month"
+        ],
+        [
+          "BTN_SAVE",
+          "Save"
+        ],
+        [
+          "BTN_CANCEL",
+          "Cancel"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "theme",
+      "label": "Colours",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "units",
+      "label": "Units",
+      "type": "choice",
+      "default": "us",
+      "options": [
+        [
+          "us",
+          "Miles"
+        ],
+        [
+          "metric",
+          "Kilometres"
+        ]
+      ]
+    },
+    {
+      "key": "oilMi",
+      "label": "Engine oil every",
+      "type": "number",
+      "unit": "mi",
+      "default": 3000,
+      "steps": [
+        2000,
+        2500,
+        3000,
+        4000,
+        5000,
+        6000,
+        7500,
+        10000
+      ]
+    },
+    {
+      "key": "plugsMi",
+      "label": "Spark plugs every",
+      "type": "number",
+      "unit": "mi",
+      "default": 30000,
+      "steps": [
+        15000,
+        20000,
+        25000,
+        30000,
+        40000,
+        60000
+      ]
+    },
+    {
+      "key": "coilsMi",
+      "label": "Ignition coils every",
+      "type": "number",
+      "unit": "mi",
+      "default": 60000,
+      "steps": [
+        30000,
+        40000,
+        50000,
+        60000,
+        80000,
+        100000
+      ]
+    },
+    {
+      "key": "diffMi",
+      "label": "Diff fluid every",
+      "type": "number",
+      "unit": "mi",
+      "default": 50000,
+      "steps": [
+        20000,
+        30000,
+        40000,
+        50000,
+        60000
+      ]
+    },
+    {
+      "key": "xferMi",
+      "label": "Transfer case fluid every",
+      "type": "number",
+      "unit": "mi",
+      "default": 50000,
+      "steps": [
+        20000,
+        30000,
+        40000,
+        50000,
+        60000
+      ]
+    },
+    {
+      "key": "transMi",
+      "label": "Transmission fluid every",
+      "type": "number",
+      "unit": "mi",
+      "default": 60000,
+      "steps": [
+        30000,
+        40000,
+        50000,
+        60000,
+        80000
+      ]
+    },
+    {
+      "key": "brakeMo",
+      "label": "Brake fluid every",
+      "type": "number",
+      "unit": "months",
+      "default": 24,
+      "steps": [
+        12,
+        24,
+        36
+      ]
+    },
+    {
+      "key": "airMi",
+      "label": "Air filter every",
+      "type": "number",
+      "unit": "mi",
+      "default": 30000,
+      "steps": [
+        15000,
+        20000,
+        30000,
+        45000
+      ]
+    },
+    {
+      "key": "cabinMo",
+      "label": "Cabin filter every",
+      "type": "number",
+      "unit": "months",
+      "default": 12,
+      "steps": [
+        6,
+        12,
+        24
+      ]
+    }
+  ]
+}

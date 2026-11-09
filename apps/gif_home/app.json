@@ -1,0 +1,227 @@
+{
+  "id": "gif_home",
+  "title": "TJM GIF Home",
+  "description": "Offline animated GIF home-screen widget with QR-code phone upload for iDrive 7",
+  "version": "0.3.1",
+  "vendor": "TJM",
+  "loggingId": "OB18",
+  "iconGlyph": "GIF",
+  "signals": {},
+  "startWidget": {
+    "name": "GIF Home",
+    "layout": "LT_Table_OnlineApps_DriveRecorderWidget",
+    "image": "BackgroundImage1",
+    "size": [
+      384,
+      256
+    ],
+    "safe": [
+      0.07,
+      0.07
+    ],
+    "cells": {
+      "Title": [
+        "",
+        "Text"
+      ],
+      "ErrorInfo": [
+        false,
+        "Bool"
+      ],
+      "background": [
+        false,
+        "Bool"
+      ],
+      "ProgressbarVisible": [
+        false,
+        "Bool"
+      ],
+      "TextRecordings": [
+        "",
+        "Text"
+      ],
+      "TextCam": [
+        "",
+        "Text"
+      ],
+      "TimeElapsed": [
+        "",
+        "Text"
+      ],
+      "TimeRemaining": [
+        "",
+        "Text"
+      ]
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM GIF Home",
+      "buttons": [
+        [
+          "BTN_SOURCE",
+          "Switch GIF"
+        ],
+        [
+          "BTN_PHONE",
+          "Phone upload"
+        ],
+        [
+          "BTN_NEXT",
+          "Next IP"
+        ],
+        [
+          "BTN_RELOAD",
+          "Reload GIF"
+        ],
+        [
+          "BTN_HELP",
+          "Widget setup"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "renderer",
+      "label": "App display mode",
+      "type": "choice",
+      "default": "software",
+      "options": [
+        [
+          "software",
+          "Native BMW display (recommended)"
+        ],
+        [
+          "auto",
+          "GPU renderer (experimental)"
+        ]
+      ]
+    },
+    {
+      "key": "source",
+      "label": "Animation",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Custom if available"
+        ],
+        [
+          "demo",
+          "Animated BMW logo"
+        ],
+        [
+          "drift",
+          "Pixel drift: Night City BMW"
+        ],
+        [
+          "sunset",
+          "Pixel drive: Sunset"
+        ],
+        [
+          "garage",
+          "Pixel art: Neon Garage"
+        ],
+        [
+          "tunnel",
+          "Pixel art: Midnight Run"
+        ],
+        [
+          "custom",
+          "Custom GIF only"
+        ]
+      ]
+    },
+    {
+      "key": "fit",
+      "label": "Picture fit",
+      "type": "choice",
+      "default": "contain",
+      "options": [
+        [
+          "cover",
+          "Fill / crop edges"
+        ],
+        [
+          "contain",
+          "Full picture / bars"
+        ]
+      ]
+    },
+    {
+      "key": "speed",
+      "label": "Animation speed",
+      "type": "choice",
+      "default": "normal",
+      "options": [
+        [
+          "slow",
+          "Half speed"
+        ],
+        [
+          "normal",
+          "Normal"
+        ],
+        [
+          "fast",
+          "1.5x speed"
+        ]
+      ]
+    },
+    {
+      "key": "widgetFps",
+      "label": "Widget refresh rate",
+      "type": "number",
+      "unit": "fps",
+      "default": 4,
+      "steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "key": "widgetBackground",
+      "label": "Native widget background",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "widgetTone",
+      "label": "Home widget brightness",
+      "type": "choice",
+      "default": "balanced",
+      "options": [
+        [
+          "original",
+          "Original GIF colours"
+        ],
+        [
+          "balanced",
+          "Brighter, compensate edges"
+        ],
+        [
+          "strong",
+          "Strong edge compensation"
+        ]
+      ]
+    },
+    {
+      "key": "pause",
+      "label": "Pause animation",
+      "type": "bool",
+      "default": false
+    }
+  ]
+}

@@ -1005,3 +1005,57 @@ binaryen 119). The game data, [Freedoom: Phase 1](https://freedoom.github.io) 0.
 licence, included in `NOTICE`), is not in the repository: `build.py` downloads it and checks its
 SHA-256. Doom is a trademark of id Software; Freedoom and this app are not affiliated with id
 Software.
+
+---
+
+## Third-party apps in the TJM set
+
+These apps were written by other developers and are included under their licenses (each app folder keeps its
+`LICENSE` and a `NOTICE-TJM.md`). TJM changed only the name, the icon, the vendor and the logging id; where an
+app was written for a different version of the kit, it carries that kit code in its own `kit/` folder. All credit
+stays with the original authors.
+
+| TJM app | Folder | Original | Source | License | Needs |
+|---|---|---|---|---|---|
+| TJM Ambient Lighting | `apps/g21_ambient` | G21 Ambient Lighting | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | - |
+| TJM Ambient Studio | `apps/ambient_studio_full` | Ambient Studio | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Battery & Electrical | `apps/dimon_battery` | Battery & Electrical | [DimonPrograms/dimonprograms-apps](https://github.com/DimonPrograms/dimonprograms-apps) | MIT | - |
+| TJM Car Care | `apps/aref_carcare` | Car Care | [arefahmad/idrive7-apps](https://github.com/arefahmad/idrive7-apps) | MIT | - |
+| TJM Car Explorer | `apps/aref_explorer` | Car Explorer | [arefahmad/idrive7-apps](https://github.com/arefahmad/idrive7-apps) | MIT | - |
+| TJM Car Lyrics | `apps/aref_carlyrics` | Car Lyrics | [arefahmad/idrive7-apps](https://github.com/arefahmad/idrive7-apps) | MIT | internet |
+| TJM Cluster Centre | `apps/cluster_centre` | Cluster Centre | [eroobeeroo/idrive7-cluster-info](https://github.com/eroobeeroo/idrive7-cluster-info) | GPL-3.0 | cluster-render |
+| TJM Cluster Info | `apps/cluster_info` | Cluster Info | [eroobeeroo/idrive7-cluster-info](https://github.com/eroobeeroo/idrive7-cluster-info) | GPL-3.0 | cluster-render |
+| TJM Cluster Layouts | `apps/cluster_layouts` | Cluster Layouts | [eroobeeroo/idrive7-cluster-info](https://github.com/eroobeeroo/idrive7-cluster-info) | GPL-3.0 | cluster-render |
+| TJM Cluster Themes | `apps/cluster_themes` | Cluster Themes | [bimmer-lab/apps](https://github.com/bimmer-lab/apps) | MIT | cluster-render |
+| TJM Copilot | `apps/m_copilot` | M-Copilot | [hexlay/idrive7-custom-apps](https://github.com/hexlay/idrive7-custom-apps) | GPL-3.0 | internet |
+| TJM Custom Cluster | `apps/custom_cluster` | Custom Cluster | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | cluster-render |
+| TJM DPF Status | `apps/dpf` | DPF Status | [dzooky/bmrmodz](https://github.com/dzooky/bmrmodz) | MIT | - |
+| TJM Drive HUD | `apps/drive_hud_full` | Drive HUD | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | cluster-render |
+| TJM Drive Log | `apps/aref_drivelog` | Drive Log | [arefahmad/idrive7-apps](https://github.com/arefahmad/idrive7-apps) | MIT | - |
+| TJM EVA HUD | `apps/eva_hud` | EVA | [PenguinDukeYDAuto/idrive7-EVAHUD](https://github.com/PenguinDukeYDAuto/idrive7-EVAHUD) | MIT | cluster-render |
+| TJM Equalizer | `apps/equalizer` | Equalizer | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | - |
+| TJM Flex Fuel | `apps/perea_mhd_flex` | Flex Fuel | [alexpereap/pereaperformance-idrive7-apps](https://github.com/alexpereap/pereaperformance-idrive7-apps) | MIT | - |
+| TJM GIF Home | `apps/gif_home` | GIF Home | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | internet |
+| TJM Green Light Alert | `apps/green_light_alert` | Green Light Alert | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM HUD Widgets | `apps/idrive_hud_widgets` | HUD Widgets | [bimmer-lab/apps](https://github.com/bimmer-lab/apps) | MIT | cluster-render |
+| TJM Heating Comfort | `apps/g21_wheelheat` | G21 Heating Comfort | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | - |
+| TJM Hotspot Studio | `apps/hotspot_studio` | Hotspot Studio | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | tool:hotspot-studio-helper |
+| TJM Light Show | `apps/light_show` | Light Show | [eroobeeroo/idrive7-apps](https://github.com/eroobeeroo/idrive7-apps) | GPL-3.0 | - |
+| TJM Misfire Watch | `apps/aref_misfire` | Misfire Watch | [arefahmad/idrive7-apps](https://github.com/arefahmad/idrive7-apps) | MIT | - |
+| TJM Night Vision Cluster | `apps/front_camera_cluster` | Night Vision Cluster | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | tool:front-camera-cluster-helper |
+| TJM Oil Service | `apps/osa` | Oil Service Assistant | [dzooky/bmrmodz](https://github.com/dzooky/bmrmodz) | MIT | - |
+| TJM Parking & Clearance | `apps/parking_clearance` | Parking & Clearance | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Phone Terminal | `apps/mgu_phone_terminal` | Phone Terminal | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | internet |
+| TJM Ride Height | `apps/ride_height` | Ride Height Studio | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Road Trip Computer | `apps/road_trip_computer` | Road Trip Computer | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Spotify Connect | `apps/spotify` | Spotify | [hexlay/idrive7-custom-apps](https://github.com/hexlay/idrive7-custom-apps) | GPL-3.0 | internet |
+| TJM Start/Stop Insight | `apps/start_stop_insight` | Start/Stop Insight | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Telemetry Studio | `apps/telemetry_studio` | Telemetry Studio | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Track Mode | `apps/dimon_track_mode` | Track Mode | [DimonPrograms/dimonprograms-apps](https://github.com/DimonPrograms/dimonprograms-apps) | MIT | - |
+| TJM Vehicle Health | `apps/vehicle_health` | Vehicle Health Center | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | - |
+| TJM Vehicle Network | `apps/vehicle_network` | Vehicle Network | [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) | MIT | tool:vehicle-network-observer |
+| TJM Video Hub | `apps/mgu_video_hub` | MGU Video Hub | [NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps) | MIT | internet |
+| TJM iDrive Monitor | `apps/jap_sysmon` | iDrive Monitor | [JustAnotherPU/mgu-apps](https://github.com/JustAnotherPU/mgu-apps) | MIT | - |
+
+The Store helper tools under `third_party/store-tools/` (front-camera-cluster-helper, hotspot-studio-helper,
+vehicle-network-observer) come from [alexp50/bmw-apps](https://github.com/alexp50/bmw-apps) under its license.

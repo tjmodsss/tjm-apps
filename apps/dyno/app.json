@@ -1,6 +1,6 @@
 {
   "id": "dyno",
-  "title": "Virtual Dyno",
+  "title": "TJM Virtual Dyno",
   "description": "Power and torque curves from a full-throttle pull, saved and compared",
   "version": "1.5.2",
   "vendor": "custom",
@@ -25,7 +25,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Virtual Dyno",
+      "title": "TJM Virtual Dyno",
       "buttons": [
         ["BTN_ACTION", "Baseline"],
         ["BTN_PAGE", "Next page"],

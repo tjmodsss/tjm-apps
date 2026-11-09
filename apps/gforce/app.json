@@ -1,6 +1,6 @@
 {
   "id": "gforce",
-  "title": "G-Force",
+  "title": "TJM G-Force",
   "description": "Friction circle with grip envelope, peak g per direction and session records",
   "version": "1.6.20",
   "vendor": "custom",
@@ -22,7 +22,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "G-Force",
+      "title": "TJM G-Force",
       "buttons": [
         ["BTN_ACTION", "Reset max"],
         ["BTN_PAGE", "Next page"],

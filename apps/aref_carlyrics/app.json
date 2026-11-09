@@ -1,0 +1,151 @@
+{
+  "id": "aref_carlyrics",
+  "title": "TJM Car Lyrics",
+  "description": "Synced lyrics for whatever the car plays: Apple Music over CarPlay, Bluetooth or USB, no Spotify needed. A full-screen page drawn like Apple Music's: the album art blurred behind, the cover and a progress line on the left, and the lyrics gliding line by line on the right, timed to the song from the car's own clock. Lyrics from LRCLIB, artwork from Apple's iTunes search. A Probe tab shows what the car reports. Read-only toward the car. Needs internet through the Store's uplink.",
+  "version": "0.3.1",
+  "vendor": "TJM",
+  "loggingId": "OB09",
+  "internet": true,
+  "startWidget": {
+    "comment": "Home-screen widget (kit/runtime/homewidget.js): the big size is a 384 x 256 picture main.js draws, the small size two text lines.",
+    "name": "Car Lyrics",
+    "layout": "LT_Table_OnlineApps_DriveRecorderWidget",
+    "image": "BackgroundImage1",
+    "size": [
+      384,
+      256
+    ],
+    "safe": [
+      0.09,
+      0.1
+    ],
+    "cells": {
+      "ErrorInfo": [
+        false,
+        "Bool"
+      ],
+      "background": [
+        true,
+        "Bool"
+      ],
+      "Title": [
+        "",
+        "Text"
+      ],
+      "ProgressbarVisible": [
+        false,
+        "Bool"
+      ],
+      "Progress": [
+        0,
+        "Float"
+      ],
+      "TextRecordings": [
+        "",
+        "Text"
+      ],
+      "TextCam": [
+        "",
+        "Text"
+      ],
+      "TimeElapsed": [
+        "",
+        "Text"
+      ],
+      "TimeRemaining": [
+        "",
+        "Text"
+      ]
+    }
+  },
+  "signals": {
+    "de.bmw.infotainment.a4a.carplay.CarPlayManager": "*",
+    "de.bmw.infotainment.entertainment.mediaplayer.MediaPlayer": "*",
+    "de.bmw.infotainment.hmi.hmimediastate.HmiMediaState": "*",
+    "de.bmw.infotainment.entertainment.dynamicmediaplayer.DynamicMediaPlayer": "*"
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Car Lyrics",
+      "fullscreen": true,
+      "buttons": [
+        [
+          "BTN_SYNC",
+          "Song just started"
+        ],
+        [
+          "BTN_PROBE",
+          "Probe"
+        ],
+        [
+          "BTN_PAGE",
+          "Next page"
+        ],
+        [
+          "BTN_MORE",
+          "More"
+        ],
+        [
+          "BTN_SAVE",
+          "Save report"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "theme",
+      "label": "Colours",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "offset",
+      "label": "Lyrics timing",
+      "type": "number",
+      "unit": "ms",
+      "default": 0,
+      "steps": [
+        -3000,
+        -2000,
+        -1500,
+        -1000,
+        -750,
+        -500,
+        -250,
+        0,
+        250,
+        500,
+        750,
+        1000,
+        1500,
+        2000,
+        3000
+      ]
+    }
+  ]
+}

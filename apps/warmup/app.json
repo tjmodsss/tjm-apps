@@ -1,6 +1,6 @@
 {
   "id": "warmup",
-  "title": "Warm-Up",
+  "title": "TJM Warm-Up",
   "description": "Oil and coolant warm-up calculator (time to ready), safe rev limit and turbo cool-down",
   "version": "1.7.3",
   "vendor": "custom",
@@ -23,7 +23,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Warm-Up",
+      "title": "TJM Warm-Up",
       "buttons": [
         [
           "BTN_SETTINGS",

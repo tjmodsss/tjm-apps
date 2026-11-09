@@ -1,15 +1,26 @@
 # English<TAB>Русский. Только отображаемый текст; поля протокола и значения настроек не изменяются.
 M Vitals	M Vitals
+TJM Vitals	TJM Vitals
 Redline	Обороты
+TJM Redline	TJM Обороты
 Virtual Dyno	Диностенд
+TJM Virtual Dyno	TJM Диностенд
 Brake Test	Тест тормозов
+TJM Brake Test	TJM Тест тормозов
 Drag Timer	Драг-таймер
+TJM Drag Timer	TJM Драг-таймер
 G-Force	Перегрузка
+TJM G-Force	TJM Перегрузка
 Warm-Up	Прогрев
+TJM Warm-Up	TJM Прогрев
 Fault Scanner	Сканер ошибок
+TJM Fault Scanner	TJM Сканер ошибок
 eDrive	eDrive
+TJM eDrive	TJM eDrive
 Service	Обслуживание
+TJM Service	TJM Обслуживание
 Doom	Doom
+TJM Doom	TJM Doom
 Settings	Настройки
 Version	Версия
 Next page	Следующая страница
@@ -839,7 +850,9 @@ ambient	снаружи
 power distribution	распределение мощности
 s (cell core), else the car	с (температура ячеек), иначе данные автомобиля
 Engine Config	Настройка двигателя
+TJM Engine Config	TJM Настройка двигателя
 Transmission Config	Настройка АКПП
+TJM Transmission Config	TJM Настройка АКПП
 Open	Открыть
 Close	Закрыть
 OEM	Штатно
@@ -1252,6 +1265,7 @@ overdue	просрочено
 
 # Live Data: страницы, макеты, поездки и настройки.
 Live Data	Живые данные
+TJM Live Data	TJM Живые данные
 Gauges	Приборы
 Gauge	Прибор
 New screen	Новый экран

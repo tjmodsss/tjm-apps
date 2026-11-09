@@ -68,6 +68,7 @@ NODE=${NODE:-/usr/bin/node}
 BK_LOCAL=$SELF_DIR/backups
 BK_UNIT=/var/opt/public/mgu_custom_backup
 REBOOT=0
+NOREG=""   # BMW apps this unit keeps without a registry entry (wait_settled)
 APP_UID_MIN=12203      # MainApp's app uid range starts here (ours are told apart below)
 LOG=$SELF_DIR/deploy-car.log
 
@@ -152,15 +153,42 @@ platform_sig() {
     done < "$U"
     d=$(cut -d= -f2 "$U" | sort | uniq -d | head -n 1)
     [ -z "$d" ] || { echo "inconsistent: $d listed twice in uids.txt"; return; }
+    platform_hash
+}
+platform_hash() {   # the app list + registry as they are now
+    U=$OAP/oap_12201/security/uids.txt R=$OAP/oap_12201/data/apps
     { cat "$U"; ls "$R"; cat "$R"/*.json 2>/dev/null; } | md5sum | cut -d' ' -f1
 }
+platform_noreg() {  # the apps in uids.txt without a registry entry, one per line
+    U=$OAP/oap_12201/security/uids.txt R=$OAP/oap_12201/data/apps
+    while IFS='=' read -r uid name || [ -n "$name" ]; do
+        [ -n "$name" ] && [ ! -f "$R/$name.json" ] && echo "$name"
+    done < "$U"
+}
+# TJM: a BMW app in uids.txt that has no registry entry and stays that way (seen on a car: connected-onboard,
+# the same after a head-unit reboot) is how that unit is, not MainApp half-way through an install - an install
+# changes the list or the registry within seconds. When nothing changes for a minute (13 readings, 5 s apart),
+# go on: NOREG names those apps, the backup records them and restore accepts exactly those.
 wait_settled() {
-    prev="" i=0
+    prev="" i=0 same=0
     while [ $i -lt 36 ]; do
         sig=$(platform_sig)
-        case "$sig" in inconsistent*) ;; *) [ "$sig" = "$prev" ] && return 0;; esac
+        case "$sig" in
+            inconsistent*"has no registry entry")
+                full="$sig $(platform_hash)"
+                if [ "$full" = "$prev" ]; then same=$((same + 1)); else same=0; fi
+                if [ $same -ge 12 ]; then
+                    NOREG=$(platform_noreg)
+                    warn "BMW app(s) without a registry entry, unchanged for a minute - this unit's normal state, going on: $(echo $NOREG)"
+                    return 0
+                fi
+                prev=$full ;;
+            inconsistent*) prev=$sig; same=0 ;;
+            *) [ "$sig" = "$prev" ] && return 0
+               prev=$sig; same=0 ;;
+        esac
         [ $i = 1 ] && say "waiting for the app platform to finish starting up ($sig)..."
-        prev=$sig; i=$((i + 1)); sleep 5
+        i=$((i + 1)); sleep 5
     done
     die "the app platform is still busy (${sig}) - try again in a few minutes; nothing changed"
 }
@@ -193,11 +221,13 @@ make_backup() {   # -> sets BK (the new backup dir name)
     grep " $MAINJS " /proc/mounts > "$tmp/mounts.txt" 2>/dev/null
     systemctl is-active oapcontroller.service > "$tmp/oapcontroller.txt" 2>&1
     echo "made $(date) on $(hostname 2>/dev/null)" > "$tmp/info.txt"
+    # BMW apps this unit keeps without a registry entry (wait_settled): restore accepts exactly these
+    [ -n "$NOREG" ] && echo "$NOREG" > "$tmp/noreg.txt"
     # verify: the archive lists every present path
     for p in $present; do tar tzf "$tmp/files.tgz" | grep -q "^$p" || die "backup verification failed for /$p - nothing changed"; done
     for dst in "$BK_LOCAL" "$BK_UNIT"; do
         mkdir -p "$dst/$ts" && cp -p "$tmp"/* "$dst/$ts/" || die "cannot write backup to $dst - nothing changed"
-        (cd "$dst/$ts" && md5sum manifest.txt files.tgz oap-dirs.txt > SUMS)
+        (cd "$dst/$ts" && md5sum manifest.txt files.tgz oap-dirs.txt $([ -f noreg.txt ] && echo noreg.txt) > SUMS)
         [ -e "$dst/stock" ] || echo "$ts" > "$dst/stock"
         echo "$ts" > "$dst/latest"
     done
@@ -309,7 +339,7 @@ cmd_restore() {
     if [ -f "$XU" ] && [ -d "$XR" ]; then
         while IFS='=' read -r uid name || [ -n "$name" ]; do
             [ -n "$name" ] || continue
-            [ -f "$XR/$name.json" ] || { rm -rf "$X"; die "backup $(basename "$B") was taken while the platform was busy ($name has no registry entry) - pick another one (sh deploy-car.sh backups); nothing changed"; }
+            [ -f "$XR/$name.json" ] || grep -qx "$name" "$B/noreg.txt" 2>/dev/null || { rm -rf "$X"; die "backup $(basename "$B") was taken while the platform was busy ($name has no registry entry) - pick another one (sh deploy-car.sh backups); nothing changed"; }
         done < "$XU"
         d=$(cut -d= -f2 "$XU" | sort | uniq -d | head -n 1)
         [ -z "$d" ] || { rm -rf "$X"; die "backup $(basename "$B") lists $d twice - pick another one (sh deploy-car.sh backups); nothing changed"; }

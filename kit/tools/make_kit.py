@@ -166,16 +166,22 @@ def main():
     name = 'mgu-custom-apps' + ('' if args.language == 'en' else '-' + args.language)
     OUT = os.path.join(DIST, name)
     archive = os.path.join(DIST, name + '.tar.gz')
+    # an app has app.json (the kit's own apps, build.py) or mgu-app.json (apps linked against the
+    # car's oap-sdk, such as TJM Waze Cluster: build_oap_app.py)
+    has = lambda d, f: os.path.isfile(os.path.join(ROOT, 'apps', d, f))
     apps = args.apps or sorted(d for d in os.listdir(os.path.join(ROOT, 'apps'))
-                                  if os.path.isfile(os.path.join(ROOT, 'apps', d, 'app.json')))
+                                  if has(d, 'app.json') or (has(d, 'mgu-app.json')
+                                      and os.path.isdir(os.path.join(ROOT, 'oap-sdk', 'donor'))))
     rd = pick_renderer()
 
     shutil.rmtree(OUT, ignore_errors=True)
     os.makedirs(os.path.join(OUT, 'apps'))
     for app in apps:
-        r = subprocess.run([sys.executable, os.path.join(ROOT, 'kit', 'tools', 'build.py'), '--language', args.language, app], cwd=ROOT)
+        oap = not has(app, 'app.json') and has(app, 'mgu-app.json')
+        tool = 'build_oap_app.py' if oap else 'build.py'
+        r = subprocess.run([sys.executable, os.path.join(ROOT, 'kit', 'tools', tool), '--language', args.language, app], cwd=ROOT)
         if r.returncode: sys.exit('build of %s failed' % app)
-        spec = json.load(open(os.path.join(ROOT, 'apps', app, 'app.json'), encoding='utf-8'))
+        spec = json.load(open(os.path.join(ROOT, 'apps', app, 'mgu-app.json' if oap else 'app.json'), encoding='utf-8'))
         app_id = spec.get('id', app)
         ver = spec['version']
         ver = package_version(ver, args.language)

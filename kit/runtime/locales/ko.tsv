@@ -1,16 +1,27 @@
 # English<TAB>한국어. 표시 문구만 번역하며 신호·설정 키·제어 값은 유지합니다.
 M Vitals	M 차량 정보
+TJM Vitals	TJM 차량 정보
 Redline	레드라인
+TJM Redline	TJM 레드라인
 Rev scale up to	회전수 눈금 최댓값
 Virtual Dyno	가상 다이노
+TJM Virtual Dyno	TJM 가상 다이노
 Brake Test	제동 테스트
+TJM Brake Test	TJM 제동 테스트
 Drag Timer	가속 타이머
+TJM Drag Timer	TJM 가속 타이머
 G-Force	G 센서
+TJM G-Force	TJM G 센서
 Warm-Up	엔진 예열
+TJM Warm-Up	TJM 엔진 예열
 Fault Scanner	고장 진단
+TJM Fault Scanner	TJM 고장 진단
 eDrive	eDrive
+TJM eDrive	TJM eDrive
 Service	정비 정보
+TJM Service	TJM 정비 정보
 Doom	Doom
+TJM Doom	TJM Doom
 Settings	설정
 Version	버전
 Next page	다음 화면
@@ -744,7 +755,9 @@ ambient	외기
 power distribution	전력 배분
 s (cell core), else the car	초 (셀 내부), 없으면 차량값
 Engine Config	엔진 설정
+TJM Engine Config	TJM 엔진 설정
 Transmission Config	변속기 정보
+TJM Transmission Config	TJM 변속기 정보
 Open	열기
 Close	닫기
 OEM	순정 제어
@@ -1094,6 +1107,7 @@ not supported by this DSC	이 DSC에서 미지원
 refused (security access) · switch drive readiness off: engine off, not READY (ignition on only)	보안 접근 거부 · 주행 준비 해제: 엔진 꺼짐, READY 아님 (점화만 켜짐)
 not allowed even in the extended diagnostic session	확장 진단 세션에서도 허용되지 않음
 Live Data	실시간 정보
+TJM Live Data	TJM 실시간 정보
 Gauges	게이지
 Gauge	게이지
 New screen	새 화면

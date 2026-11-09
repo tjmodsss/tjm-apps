@@ -1,6 +1,6 @@
 {
   "id": "draggy",
-  "title": "Drag Timer",
+  "title": "TJM Drag Timer",
   "description": "0-100, 100-200 and 1/4 mile timer with best times",
   "version": "2.5.19",
   "vendor": "custom",
@@ -21,7 +21,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Drag Timer",
+      "title": "TJM Drag Timer",
       "buttons": [
         ["BTN_ACTION", "Reset run"],
         ["BTN_PAGE", "Next page"],

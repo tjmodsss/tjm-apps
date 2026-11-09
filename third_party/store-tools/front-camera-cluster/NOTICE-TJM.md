@@ -1,0 +1,1 @@
+Night Vision cluster helper (front-camera-cluster-helper 0.2.1): from https://github.com/alexp50/bmw-apps (components/front-camera-cluster), MIT (LICENSE). Unchanged; listed in the TJM Store for the TJM app that needs it.

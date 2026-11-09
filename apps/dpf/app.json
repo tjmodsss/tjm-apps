@@ -1,0 +1,33 @@
+{
+  "id": "dpf",
+  "title": "TJM DPF Status",
+  "description": "Read-only diesel particulate filter status monitoring",
+  "version": "0.1.6",
+  "vendor": "TJM",
+  "loggingId": "OB03",
+  "iconGlyph": "temp",
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM DPF Status",
+      "buttons": [
+        [
+          "BTN_TEST_DPF",
+          "Test DPF DIDs"
+        ]
+      ]
+    }
+  ],
+  "signals": {
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "id": "edrive",
-  "title": "eDrive",
+  "title": "TJM eDrive",
   "description": "Real electric range, live battery power, cells and climate power, HV battery health (SOH) and energy, last charge, charge log, the 12 V battery (charge, voltage, what it does, regen, history) and a home-screen widget; on a 48 V mild hybrid its 48 V battery and DC/DC converter",
   "version": "2.8.1",
   "vendor": "custom",
@@ -92,7 +92,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "eDrive",
+      "title": "TJM eDrive",
       "buttons": [
         [
           "BTN_READ",

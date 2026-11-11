@@ -106,7 +106,7 @@ mgu.run({
         sample();
         setInterval(sample, SAMPLE_MS);
         // keep running while hidden: the check is the app's job (autostart also keeps MainApp from stopping it)
-        ctx.background('watch', true);
+        if (typeof ctx.background === 'function') ctx.background('watch', true);   // not in every kit runtime
 
         function row(cv, t, x, y, label, value, unit, frac, warn) {
             cv.text(label, x, y, 22, t.dim, { font: 'bold', spacing: 1.5 });

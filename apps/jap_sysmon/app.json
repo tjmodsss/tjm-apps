@@ -2,7 +2,7 @@
   "id": "jap_sysmon",
   "title": "TJM iDrive Monitor",
   "description": "The head unit's CPU, memory and graphics load, and a short pop-up when the iDrive runs short of them (CPU busy for 30 s, little free memory, apps near their memory cap). Starts with the head unit; no pop-up in reverse.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "license": "MIT",
   "vendor": "TJM",
   "loggingId": "OB16",

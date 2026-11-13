@@ -1,0 +1,885 @@
+{
+  "id": "adam_shiftlights",
+  "title": "TJM Shift Lights",
+  "description": "RPM shift lights on the instrument cluster and HUD, with per-drive-mode thresholds and a cold-engine limit",
+  "version": "0.4.5",
+  "mguAppStartType": "autostart",
+  "vendor": "TJM",
+  "loggingId": "OB28",
+  "iconGlyph": "rpm",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs",
+      "statusEngineTemperature": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "statusGearboxDrive": "s",
+      "DataPowerTrain2": "s"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "statusFESVehicleDynamicSwitchHMI": "s",
+      "_optional": "the car's drive mode: the 'Drive mode fallback' setting is used instead"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle": {
+      "statusDayNightChangeOver": "rs",
+      "_optional": "the car's day / night: Night dim Auto then stays at full brightness (On and Off still work)"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Shift Lights",
+      "buttons": [
+        [
+          "BTN_HUD",
+          "HUD on/off"
+        ],
+        [
+          "BTN_CLUSTER",
+          "Cluster on/off"
+        ],
+        [
+          "BTN_ALL",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "hudOn",
+      "label": "HUD",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "clusterOn",
+      "label": "Instrument cluster",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "bothMode",
+      "label": "Both on: show",
+      "type": "choice",
+      "default": "hud",
+      "options": [
+        [
+          "hud",
+          "HUD"
+        ],
+        [
+          "cluster",
+          "Instrument cluster"
+        ],
+        [
+          "map",
+          "Both (experimental centre area)"
+        ]
+      ]
+    },
+    {
+      "key": "hudStyle",
+      "label": "HUD style",
+      "type": "choice",
+      "default": "large",
+      "options": [
+        [
+          "large",
+          "Large: shift bar + rev bracket"
+        ],
+        [
+          "classic",
+          "Small: smaller shift bar + rev bracket"
+        ],
+        [
+          "bar",
+          "Shift bar only"
+        ],
+        [
+          "bracket",
+          "Rev bracket + gear only"
+        ]
+      ]
+    },
+    {
+      "key": "hudSize",
+      "label": "HUD size",
+      "type": "number",
+      "unit": "%",
+      "default": 110,
+      "markDefault": true,
+      "steps": [
+        70,
+        80,
+        90,
+        100,
+        110,
+        120
+      ]
+    },
+    {
+      "key": "hudBright",
+      "label": "HUD brightness",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "markDefault": true,
+      "steps": [
+        20,
+        40,
+        60,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hudNightMode",
+      "label": "HUD night dim",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto: dim when the car says night"
+        ],
+        [
+          "on",
+          "On: always dimmed"
+        ],
+        [
+          "off",
+          "Off: never dimmed"
+        ]
+      ]
+    },
+    {
+      "key": "hudX",
+      "label": "HUD left / right",
+      "type": "number",
+      "default": -80,
+      "markDefault": true,
+      "steps": [
+        -100,
+        -90,
+        -80,
+        -70,
+        -60,
+        -50,
+        -40,
+        -30,
+        -20,
+        -10,
+        0,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100
+      ],
+      "labels": {
+        "-100": "100 px left",
+        "-90": "90 px left",
+        "-80": "80 px left",
+        "-70": "70 px left",
+        "-60": "60 px left",
+        "-50": "50 px left",
+        "-40": "40 px left",
+        "-30": "30 px left",
+        "-20": "20 px left",
+        "-10": "10 px left",
+        "0": "Centre",
+        "10": "10 px right",
+        "20": "20 px right",
+        "30": "30 px right",
+        "40": "40 px right",
+        "50": "50 px right",
+        "60": "60 px right",
+        "70": "70 px right",
+        "80": "80 px right",
+        "90": "90 px right",
+        "100": "100 px right"
+      }
+    },
+    {
+      "key": "hudY",
+      "label": "HUD up / down",
+      "type": "number",
+      "default": 60,
+      "markDefault": true,
+      "steps": [
+        -60,
+        -50,
+        -40,
+        -30,
+        -20,
+        -10,
+        0,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60
+      ],
+      "labels": {
+        "-60": "60 px up",
+        "-50": "50 px up",
+        "-40": "40 px up",
+        "-30": "30 px up",
+        "-20": "20 px up",
+        "-10": "10 px up",
+        "0": "Centre",
+        "10": "10 px down",
+        "20": "20 px down",
+        "30": "30 px down",
+        "40": "40 px down",
+        "50": "50 px down",
+        "60": "60 px down"
+      }
+    },
+    {
+      "key": "hudBarX",
+      "label": "HUD shift bar left / right",
+      "type": "number",
+      "default": 0,
+      "markDefault": true,
+      "steps": [
+        -100,
+        -95,
+        -90,
+        -85,
+        -80,
+        -75,
+        -70,
+        -65,
+        -60,
+        -55,
+        -50,
+        -45,
+        -40,
+        -35,
+        -30,
+        -25,
+        -20,
+        -15,
+        -10,
+        -5,
+        0,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        55,
+        60,
+        65,
+        70,
+        75,
+        80,
+        85,
+        90,
+        95,
+        100
+      ],
+      "labels": {
+        "-100": "100 px left",
+        "-95": "95 px left",
+        "-90": "90 px left",
+        "-85": "85 px left",
+        "-80": "80 px left",
+        "-75": "75 px left",
+        "-70": "70 px left",
+        "-65": "65 px left",
+        "-60": "60 px left",
+        "-55": "55 px left",
+        "-50": "50 px left",
+        "-45": "45 px left",
+        "-40": "40 px left",
+        "-35": "35 px left",
+        "-30": "30 px left",
+        "-25": "25 px left",
+        "-20": "20 px left",
+        "-15": "15 px left",
+        "-10": "10 px left",
+        "-5": "5 px left",
+        "0": "Same as the HUD",
+        "5": "5 px right",
+        "10": "10 px right",
+        "15": "15 px right",
+        "20": "20 px right",
+        "25": "25 px right",
+        "30": "30 px right",
+        "35": "35 px right",
+        "40": "40 px right",
+        "45": "45 px right",
+        "50": "50 px right",
+        "55": "55 px right",
+        "60": "60 px right",
+        "65": "65 px right",
+        "70": "70 px right",
+        "75": "75 px right",
+        "80": "80 px right",
+        "85": "85 px right",
+        "90": "90 px right",
+        "95": "95 px right",
+        "100": "100 px right"
+      }
+    },
+    {
+      "key": "clusterStyle",
+      "label": "Cluster style",
+      "type": "choice",
+      "default": "large",
+      "options": [
+        [
+          "large",
+          "Large M slats"
+        ],
+        [
+          "classic",
+          "Small M slats"
+        ],
+        [
+          "row",
+          "Centre row (12 lights)"
+        ],
+        [
+          "stock",
+          "Stock look (one block per dial)"
+        ]
+      ]
+    },
+    {
+      "key": "clusterSize",
+      "label": "Cluster size",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "markDefault": true,
+      "steps": [
+        70,
+        80,
+        90,
+        100,
+        110,
+        120
+      ]
+    },
+    {
+      "key": "clusterBright",
+      "label": "Cluster brightness",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "markDefault": true,
+      "steps": [
+        20,
+        40,
+        60,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "clusterNightMode",
+      "label": "Cluster night dim",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto: dim when the car says night"
+        ],
+        [
+          "on",
+          "On: always dimmed"
+        ],
+        [
+          "off",
+          "Off: never dimmed"
+        ]
+      ]
+    },
+    {
+      "key": "clusterX",
+      "label": "Cluster left / right",
+      "type": "number",
+      "default": 0,
+      "steps": [
+        -50,
+        -45,
+        -40,
+        -35,
+        -30,
+        -25,
+        -20,
+        -15,
+        -10,
+        -5,
+        0,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50
+      ],
+      "labels": {
+        "-50": "50 px left",
+        "-45": "45 px left",
+        "-40": "40 px left",
+        "-35": "35 px left",
+        "-30": "30 px left",
+        "-25": "25 px left",
+        "-20": "20 px left",
+        "-15": "15 px left",
+        "-10": "10 px left",
+        "-5": "5 px left",
+        "0": "Default",
+        "5": "5 px right",
+        "10": "10 px right",
+        "15": "15 px right",
+        "20": "20 px right",
+        "25": "25 px right",
+        "30": "30 px right",
+        "35": "35 px right",
+        "40": "40 px right",
+        "45": "45 px right",
+        "50": "50 px right"
+      }
+    },
+    {
+      "key": "clusterY",
+      "label": "Cluster up / down",
+      "type": "number",
+      "default": 0,
+      "steps": [
+        -40,
+        -35,
+        -30,
+        -25,
+        -20,
+        -15,
+        -10,
+        -5,
+        0,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40
+      ],
+      "labels": {
+        "-40": "40 px up",
+        "-35": "35 px up",
+        "-30": "30 px up",
+        "-25": "25 px up",
+        "-20": "20 px up",
+        "-15": "15 px up",
+        "-10": "10 px up",
+        "-5": "5 px up",
+        "0": "Default",
+        "5": "5 px down",
+        "10": "10 px down",
+        "15": "15 px down",
+        "20": "20 px down",
+        "25": "25 px down",
+        "30": "30 px down",
+        "35": "35 px down",
+        "40": "40 px down"
+      }
+    },
+    {
+      "key": "onlySportPlus",
+      "label": "Only in Sport+",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "autoStart",
+      "label": "Start with the car",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "leadMs",
+      "label": "Light-up lead",
+      "type": "number",
+      "unit": "ms",
+      "default": 60,
+      "markDefault": true,
+      "steps": [
+        0,
+        20,
+        40,
+        60,
+        80,
+        100,
+        120,
+        150
+      ],
+      "labels": {
+        "0": "Off"
+      }
+    },
+    {
+      "key": "rpmPoll",
+      "label": "Fast RPM",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "driveMode",
+      "label": "Drive mode fallback",
+      "type": "choice",
+      "default": "sport",
+      "options": [
+        [
+          "comfort",
+          "Comfort"
+        ],
+        [
+          "sport",
+          "Sport"
+        ],
+        [
+          "sportplus",
+          "Sport+"
+        ]
+      ]
+    },
+    {
+      "key": "comfortStart",
+      "label": "Comfort first light",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        4500,
+        5000,
+        5500,
+        6000,
+        6200,
+        6500
+      ]
+    },
+    {
+      "key": "comfortShift",
+      "label": "Comfort shift",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2500,
+        2600,
+        2700,
+        2800,
+        2900,
+        3000,
+        3100,
+        3200,
+        3300,
+        3400,
+        3500,
+        3600,
+        3700,
+        3800,
+        3900,
+        4000,
+        4100,
+        4200,
+        4300,
+        4400,
+        4500,
+        4600,
+        4700,
+        4800,
+        4900,
+        5000,
+        5100,
+        5200,
+        5300,
+        5400,
+        5500,
+        5600,
+        5700,
+        5800,
+        5900,
+        6000,
+        6100,
+        6200,
+        6300,
+        6400,
+        6500,
+        6600,
+        6700,
+        6800
+      ]
+    },
+    {
+      "key": "sportStart",
+      "label": "Sport first light",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        4500,
+        5000,
+        5500,
+        6000,
+        6200,
+        6500
+      ]
+    },
+    {
+      "key": "sportShift",
+      "label": "Sport shift",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2500,
+        2600,
+        2700,
+        2800,
+        2900,
+        3000,
+        3100,
+        3200,
+        3300,
+        3400,
+        3500,
+        3600,
+        3700,
+        3800,
+        3900,
+        4000,
+        4100,
+        4200,
+        4300,
+        4400,
+        4500,
+        4600,
+        4700,
+        4800,
+        4900,
+        5000,
+        5100,
+        5200,
+        5300,
+        5400,
+        5500,
+        5600,
+        5700,
+        5800,
+        5900,
+        6000,
+        6100,
+        6200,
+        6300,
+        6400,
+        6500,
+        6600,
+        6700,
+        6800
+      ]
+    },
+    {
+      "key": "sportplusStart",
+      "label": "Sport+ first light",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        4500,
+        5000,
+        5500,
+        6000,
+        6200,
+        6500
+      ]
+    },
+    {
+      "key": "sportplusShift",
+      "label": "Sport+ shift",
+      "type": "number",
+      "unit": "rpm",
+      "default": 0,
+      "labels": {
+        "0": "Default"
+      },
+      "steps": [
+        0,
+        2500,
+        2600,
+        2700,
+        2800,
+        2900,
+        3000,
+        3100,
+        3200,
+        3300,
+        3400,
+        3500,
+        3600,
+        3700,
+        3800,
+        3900,
+        4000,
+        4100,
+        4200,
+        4300,
+        4400,
+        4500,
+        4600,
+        4700,
+        4800,
+        4900,
+        5000,
+        5100,
+        5200,
+        5300,
+        5400,
+        5500,
+        5600,
+        5700,
+        5800,
+        5900,
+        6000,
+        6100,
+        6200,
+        6300,
+        6400,
+        6500,
+        6600,
+        6700,
+        6800
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    },
+    {
+      "key": "demo",
+      "label": "Demo data",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto"
+        ],
+        [
+          "on",
+          "Always"
+        ],
+        [
+          "off",
+          "Never"
+        ]
+      ]
+    },
+    {
+      "key": "flashMode",
+      "label": "Shift flash",
+      "type": "choice",
+      "default": "app",
+      "options": [
+        [
+          "app",
+          "App: switched by this app (default)"
+        ],
+        [
+          "renderer",
+          "Renderer: played by the cluster"
+        ]
+      ]
+    }
+  ]
+}

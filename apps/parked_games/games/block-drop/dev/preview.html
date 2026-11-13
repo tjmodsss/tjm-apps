@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Block Drop preview</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #111; color: #ccc; font: 14px system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+  canvas { width: min(100%, 1600px); aspect-ratio: 1600 / 520; background: #000; border-radius: 8px; touch-action: none; }
+  p { margin: 0; max-width: 1000px; text-align: center; }
+  kbd { background: #333; border-radius: 4px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<!-- A PC preview of the game with the browser's canvas standing in for the kit's. Open this file
+     in a browser (no server needed). The car's own drawing is in the kit's emulator (GAMES.md). -->
+<canvas id="screen" width="1600" height="520"></canvas>
+<p>Mouse wheel or <kbd>[</kbd> <kbd>]</kbd> turns the knob, <kbd>Enter</kbd> presses it, arrow keys tilt it
+(<kbd>↑</kbd> swap colours, <kbd>↓</kbd> drop). Click the on-screen buttons like a touchscreen. <kbd>P</kbd> pauses.</p>
+<script>
+  // CommonJS shim: the game's files use module.exports / require('./engine')
+  var registry = {}, module = { exports: {} };
+  function require(name) { return registry[name.replace(/^.*\//, '').replace(/\.js$/, '')]; }
+</script>
+<script src="../engine.js"></script>
+<script>registry.engine = module.exports; module = { exports: {} };</script>
+<script src="../index.js"></script>
+<script>
+  var BlockDropGame = module.exports;
+  var el = document.getElementById('screen'), g = el.getContext('2d');
+
+  // the kit's canvas calls on a 2D context (angles: degrees clockwise from 12 o'clock)
+  function rr(x, y, w, h, r) { r = Math.max(0, Math.min(r, w / 2, h / 2)); g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+  function css(c) { return Array.isArray(c) ? 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + ((c.length > 3 ? c[3] : 255) / 255) + ')' : c; }
+  var FONTS = { label: '500', bold: '700', num: '700' };
+  var cv = {
+    fillRect: function (x, y, w, h, c) { g.fillStyle = css(c); g.fillRect(x, y, w, h); return cv; },
+    roundRect: function (x, y, w, h, r, c) { g.fillStyle = css(c); rr(x, y, w, h, r); g.fill(); return cv; },
+    strokeRoundRect: function (x, y, w, h, r, lw, c) { g.strokeStyle = css(c); g.lineWidth = lw; rr(x + lw / 2, y + lw / 2, w - lw, h - lw, r); g.stroke(); return cv; },
+    quad: function (p, c) { g.fillStyle = css(c); g.beginPath(); g.moveTo(p[0][0], p[0][1]); for (var i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]); g.closePath(); g.fill(); return cv; },
+    arc: function (cx, cy, r0, r1, a0, a1, c) {
+      var s = (a0 - 90) * Math.PI / 180, e = (a1 - 90) * Math.PI / 180;
+      g.fillStyle = css(c); g.beginPath(); g.arc(cx, cy, r1, s, e); g.arc(cx, cy, r0, e, s, true); g.closePath(); g.fill(); return cv;
+    },
+    circle: function (cx, cy, r, c) { g.fillStyle = css(c); g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill(); return cv; },
+    line: function (x0, y0, x1, y1, w, c) { g.strokeStyle = css(c); g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); return cv; },
+    text: function (s, x, y, size, c, o) {
+      o = o || {}; g.fillStyle = css(c); g.font = (FONTS[o.font] || '500') + ' ' + size + 'px system-ui, sans-serif';
+      g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
+      if ('letterSpacing' in g) g.letterSpacing = (o.spacing || 0) + 'px';
+      g.fillText(String(s), x, y); return g.measureText(String(s)).width;
+    },
+  };
+
+  // a stand-in for the shell's api (apps/parked_games/GAMES.md)
+  var best = null, over = null, game, paused = false;
+  try { best = Number(localStorage.getItem('block-drop-best')) || null; } catch (e) {}
+  var api = {
+    W: 1600, H: 520, now: function () { return performance.now(); }, random: Math.random, log: console,
+    theme: function () { return { bg: '#04060a', text: '#f4f7fb', dim: '#8a95a6' }; },
+    best: function () { return best; },
+    end: function (score) {
+      over = score;
+      if (best === null || score > best) { best = score; try { localStorage.setItem('block-drop-best', String(score)); } catch (e) {} }
+    },
+  };
+  function newRound() { over = null; paused = false; game = BlockDropGame.create(api); window.game = game; }
+  newRound();
+
+  function pos(ev) { var b = el.getBoundingClientRect(); return { x: (ev.clientX - b.left) * 1600 / b.width, y: (ev.clientY - b.top) * 520 / b.height }; }
+  el.addEventListener('pointerdown', function (ev) {
+    if (over !== null) return newRound();
+    var p = pos(ev); game.input({ type: 'touch', phase: 'down', x: p.x, y: p.y }); game.input({ type: 'tap', x: p.x, y: p.y });
+  });
+  el.addEventListener('wheel', function (ev) { ev.preventDefault(); game.input({ type: 'turn', delta: ev.deltaY > 0 ? 1 : -1 }); }, { passive: false });
+  addEventListener('keydown', function (ev) {
+    var k = ev.key, e = null;
+    if (over !== null) { if (k === 'Enter') newRound(); return; }
+    if (k === '[') e = { type: 'turn', delta: -1 };
+    else if (k === ']') e = { type: 'turn', delta: 1 };
+    else if (k === 'Enter') e = { type: 'press' };
+    else if (k === 'ArrowUp') e = { type: 'push', dir: 'N' };
+    else if (k === 'ArrowDown') e = { type: 'push', dir: 'S' };
+    else if (k === 'ArrowLeft') e = { type: 'push', dir: 'W' };
+    else if (k === 'ArrowRight') e = { type: 'push', dir: 'E' };
+    else if (k === 'p' || k === 'P') { paused = !paused; paused ? game.pause() : game.resume(); }
+    if (e) { ev.preventDefault(); game.input(e); }
+  });
+
+  var last = performance.now();
+  function frame(t) {
+    if (over === null && !paused) game.update(Math.min(50, t - last));
+    last = t;
+    g.fillStyle = '#04060a'; g.fillRect(0, 0, 1600, 520);        // the shell clears the frame
+    game.draw(cv);
+    if (over !== null) {                                         // the shell's result card stands in here
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(560, 150, 480, 220);
+      cv.text('Score ' + over, 800, 240, 40, '#ffffff', { align: 'center', font: 'bold' });
+      cv.text('Enter or tap to play again', 800, 300, 22, '#8a95a6', { align: 'center' });
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>

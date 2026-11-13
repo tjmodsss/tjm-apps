@@ -1,0 +1,17 @@
+Home Assistant for the BMW MGU - third-party notices
+=====================================================
+
+This app is released under the GNU General Public License v3.0 or later (LICENSE).
+
+It contains code from other projects:
+
+1. hexlay/idrive7-custom-apps (https://github.com/hexlay/idrive7-custom-apps), GPL-3.0-or-later:
+   the phone pairing modules cloud_pair.js, link_crypto.js, relay_stream.js, tls_dates.js and certs.js
+   (copied unchanged; later changes to them are marked in the file). certs.js is in turn a copy of
+   robertnisipeanu/mgu-store native/mgu-updater/js/certs.js (GPL-3.0, Robert Nisipeanu).
+2. Project Nayuki's QR Code generator library, qrcodegen.js (MIT License, see the file header):
+   https://www.nayuki.io/page/qr-code-generator-library
+3. cauliflowermossgrape's MGU App Kit (https://github.com/cauliflowermossgrape/idrive7-apps), MIT License,
+   Copyright (c) 2026 cauliflowermossgrape: the kit this app is built on (LICENSE.MIT).
+
+Home Assistant is a trademark of the Home Assistant project; this app is not affiliated with it. Not affiliated with BMW.

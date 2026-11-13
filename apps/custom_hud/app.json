@@ -1,0 +1,259 @@
+{
+  "id": "custom_hud",
+  "title": "TJM Custom HUD",
+  "description": "Speed, gear, shift bar, boost, oil and coolant on the windshield HUD, in Classic, M or Night themes",
+  "version": "0.1.31",
+  "vendor": "TJM",
+  "loggingId": "OB2B",
+  "iconGlyph": "HUD",
+  "signals": {
+    "de.bmw.body.Light": {
+      "StatusFunctionsIndicators": "s",
+      "_optional": "the indicators: the Miku character points that way"
+    },
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs",
+      "statusEngineTemperature": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS2": {
+      "statusLongitudinalAccelerationMassCenter": "rs",
+      "statusLateralAccelerationMassCenter": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "statusSwitchDriveDynamicSport2": "rs",
+      "statusActualValueTorque2": "rs",
+      "statusFESVehicleDynamicSwitchHMI": "rs"
+    },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "statusGearboxDrive": "s",
+      "DataPowerTrain2": "s"
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ]
+    },
+    "de.bmw.infotainment.KombiIF": {
+      "statusRangeTankStatus": "rs",
+      "statusShowTimeDate": "rs"
+    },
+    "de.bmw.infrastructure.EnvironmentalInformation": {
+      "ExteriorTemperature": "s"
+    },
+    "de.bmw.infotainment.navigation.guiding.Guidance": {
+      "_instances": "Main_Instance",
+      "guidanceState": "rs"
+    },
+    "de.bmw.infotainment.displaydataserver.DisplayDataServer": {
+      "functionalLibraryData": "rs"
+    },
+    "de.bmw.dass.GapVehicleAhead": {
+      "DataFrontVehicle": "s",
+      "GapVehicleDrivingAhead": "s"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "TJM Custom HUD",
+      "settings": true,
+      "items": [
+        [
+          "text",
+          "STATUS",
+          "Starting the HUD"
+        ],
+        [
+          "text",
+          "DETAIL",
+          " "
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "hudLayout",
+      "label": "Layout",
+      "type": "choice",
+      "default": "miku",
+      "options": [
+        [
+          "off",
+          "Off (BMW's own HUD)"
+        ],
+        [
+          "miku",
+          "Miku"
+        ],
+        [
+          "grid",
+          "Calibration grid"
+        ]
+      ]
+    },
+    {
+      "key": "makeRoom",
+      "label": "Make room for BMW's guidance and cruise display",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "mikuReset",
+      "label": "Reset Miku (standing upright, as if nothing happened)",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "demo",
+      "label": "Demo data",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto (until the car sends data)"
+        ],
+        [
+          "on",
+          "On"
+        ],
+        [
+          "off",
+          "Off"
+        ]
+      ]
+    }
+  ],
+  "config": {
+    "target": "hud",
+    "statusName": "HUD",
+    "socketPath": "/dev/shm/cluster-render/render.sock",
+    "location": {
+      "lat": 35.2271,
+      "lon": -80.8431
+    },
+    "utcOffsetMinutes": null,
+    "_comment": "socketPath: cluster-render's documented default. location: where the Auto theme works out sunrise and sunset (Charlotte, NC). utcOffsetMinutes: leave null to follow the car's own clock (the time zone the cluster shows, summer time included); set it (e.g. -300 for EST) only to override that. tankLitres: the fuel gauge's full mark (the car sends litres, not the tank size; a G01 X3 holds 65).",
+    "dme": {
+      "comment": "Boost from the engine unit (DME, ecu 18) over read-only UDS 0x22, only while the sport display sends no boost and a boost readout is shown. Absolute kPa, the outside air pressure (baro) is subtracted. Candidates tried in order, the first plausible one wins. From cauliflowermossgrape's car_vitals (MIT).",
+      "ecu": 18,
+      "boost": [
+        {
+          "did": "F470",
+          "bytes": 2,
+          "at": 3,
+          "factor": 0.03125,
+          "offset": 0,
+          "min": 20,
+          "max": 600,
+          "note": "OBD PID 0x70 boost pressure control: actual boost pressure sensor A (absolute), 1/32 kPa"
+        },
+        {
+          "did": "F487",
+          "bytes": 2,
+          "at": 1,
+          "factor": 0.03125,
+          "offset": 0,
+          "min": 20,
+          "max": 600,
+          "note": "OBD PID 0x87 intake manifold absolute pressure sensor A, 1/32 kPa"
+        },
+        {
+          "did": "F40B",
+          "bytes": 1,
+          "at": 0,
+          "factor": 1,
+          "offset": 0,
+          "min": 20,
+          "max": 255,
+          "note": "OBD PID 0x0B intake manifold absolute pressure, kPa (max 255 = 1.5 bar boost)"
+        },
+        {
+          "obd": "0B",
+          "bytes": 1,
+          "at": 0,
+          "factor": 1,
+          "offset": 0,
+          "min": 20,
+          "max": 255,
+          "note": "OBD service 01 PID 0x0B (same as F40B)"
+        }
+      ],
+      "baro": [
+        {
+          "did": "F433",
+          "bytes": 1,
+          "at": 0,
+          "factor": 1,
+          "offset": 0,
+          "min": 50,
+          "max": 115,
+          "note": "OBD PID 0x33 barometric pressure, kPa (101.3 when not available)"
+        },
+        {
+          "obd": "33",
+          "bytes": 1,
+          "at": 0,
+          "factor": 1,
+          "offset": 0,
+          "min": 50,
+          "max": 115,
+          "note": "OBD service 01 PID 0x33 (same as F433)"
+        }
+      ]
+    },
+    "choiceAliases": {
+      "redline": "miku",
+      "perch": "miku",
+      "daily": "miku",
+      "sport": "miku"
+    },
+    "indicators": true,
+    "tankLitres": 65,
+    "acc": {
+      "comment": "The car ahead and the ACC set speed: raw * factor + offset. gap: the gap's raw value to metres, 0.1 m steps (the 1:1 reading was 10 times BMW's own on the car) (GapVehicleDrivingAhead, or DataFrontVehicle when the car sends it); rel: DataFrontVehicle's speed to km/h (without it the relative speed comes from the gap's rate); set: cruiseCtrlSpeedHUD. The car's catalog gives no units; the app logs 'car ahead raw: ...' when the values change, to calibrate these against BMW's own HUD.",
+      "gap": {
+        "factor": 0.1,
+        "offset": 0
+      },
+      "rel": {
+        "factor": 1,
+        "offset": 0
+      },
+      "set": {
+        "factor": 1,
+        "offset": 0
+      }
+    },
+    "fixedSettings": {
+      "_comment": "Settings no longer offered (Daily and Sport removed in 0.1.24): the values the engine reads for them. Miku dims after sunset (Auto theme).",
+      "byMode": false,
+      "hudTheme": "auto",
+      "dayTheme": "classic",
+      "units": "us",
+      "clock": "12h",
+      "redline": 7000,
+      "shiftBefore": 300,
+      "coldGuard": true,
+      "showClock": true,
+      "showOil": true,
+      "showCoolant": true,
+      "showBoost": true,
+      "mikuParts": "full"
+    }
+  },
+  "codeFolders": [
+    "engine",
+    "car",
+    "widgets"
+  ]
+}

@@ -1,0 +1,9 @@
+cluster_render_client.js is the cluster-render service's Node 8 client, Copyright (C) 2026 Robert Nisipeanu,
+licensed under the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/). It is an unmodified copy of
+native/cluster-render/js/cluster_render_client.js from https://github.com/robertnisipeanu/idrive-apps at commit
+793da1ec9c8f761fe9aa319cddb48544bada40b6; its source is available there. tools/check.sh checks its
+sha256 against that commit's copy.
+
+The cover's art (art/art.json) draws its mph and drive-mode text from Liberation Sans 2.1.5 (Copyright (c) 2012 Red Hat, Inc.,
+with Reserved Font Name Liberation; digitized data copyright (c) 2010 Google Corporation), SIL Open Font License 1.1:
+tools/mtrack-art/fonts/ in https://github.com/pinguinooo/idrive7-apps holds the font files and the licence.

@@ -640,6 +640,9 @@ def build(app_id, language='en', preview_only=False):
         elif f.endswith(('.wasm', '.wad', '_LICENSE.txt')) or f in ('LICENSE', 'NOTICE') or (f.endswith('.png') and f != 'icon.png'):
             # files the app reads as they are (doom: the game as WebAssembly, its data, its licences)
             shutil.copy(os.path.join(adir, f), os.path.join(src, 'javascript', f))
+        elif os.path.isdir(os.path.join(adir, f)) and f in spec.get('codeFolders', []):
+            # TJM: a folder of code the app requires (app.json "codeFolders", e.g. Custom HUD's engine/), copied as it is
+            shutil.copytree(os.path.join(adir, f), os.path.join(src, 'javascript', f), dirs_exist_ok=True)
         elif os.path.isdir(os.path.join(adir, f)):
             # data folders go along as one compressed file, read with kit/runtime/pack.js
             # (e.g. dtc_scanner/dtc_db, the fault text database -> dtc_db.pack)

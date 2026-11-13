@@ -1,0 +1,170 @@
+{
+  "id": "gs_ambient",
+  "title": "TJM Ambient Colour Wheel",
+  "description": "Farbrad für die Ambientebeleuchtung: zwei Zonen (oben und unten), Helligkeit, Farbverlauf, Favoritenlauf, Überblenden, Atmen und Favoritengruppen. Standard ist die Simulation. BDC-Licht schreibt über den bestätigten Kurzzeit-Weg und ein Comfort-Dienst hält die Farbe, nachdem die Oberfläche zu ist, bis das Auto aus ist",
+  "version": "0.1.8",
+  "startType": "autostart",
+  "vendor": "TJM",
+  "loggingId": "OB2E",
+  "iconGlyph": "Am",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS2": {
+      "statusLongitudinalAccelerationMassCenter": "rs",
+      "statusLateralAccelerationMassCenter": "rs"
+    },
+    "de.bmw.infrastructure.VehicleCondition": {
+      "_optional": "Fahrzeugzustand: ohne ihn geht die Farbe nicht von allein aus",
+      "VehicleCondition": "s"
+    },
+    "de.bmw.infotainment.misc.ComfortFunctionIuK": {
+      "_optional": "Menüfarbe der Werk-Ambiente; kein An/Aus-Schalter",
+      "statusAmbientLightInteriorColour": "rs"
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ]
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Ambient Colour Wheel",
+      "buttons": [
+        [
+          "BTN_PAGE",
+          "Nächste Seite"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Einstellungen"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "light",
+      "label": "Lichtsteuerung",
+      "type": "choice",
+      "default": "sim",
+      "options": [
+        [
+          "sim",
+          "Simuliert (sicher)"
+        ],
+        [
+          "profile",
+          "Profil umschalten · gesperrt"
+        ],
+        [
+          "bdc",
+          "BDC-Licht (schreibt ans Auto)"
+        ]
+      ]
+    },
+    {
+      "key": "autostart",
+      "label": "Autostart",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "nachlauf",
+      "label": "Nachlauf nach Aus",
+      "type": "number",
+      "unit": "s",
+      "default": 0,
+      "steps": [
+        0,
+        10,
+        15,
+        20,
+        30,
+        45,
+        60,
+        90,
+        120
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Bildschirm-Layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Vollbild"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (Standard)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    },
+    {
+      "key": "demo",
+      "label": "Demo-Daten",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto"
+        ],
+        [
+          "on",
+          "Immer"
+        ],
+        [
+          "off",
+          "Nie"
+        ]
+      ]
+    },
+    {
+      "key": "debug",
+      "label": "Debug-Protokoll",
+      "type": "choice",
+      "default": "off",
+      "options": [
+        [
+          "off",
+          "Aus"
+        ],
+        [
+          "on",
+          "An (schreibt gs_ambient_probe.json)"
+        ]
+      ]
+    }
+  ]
+}

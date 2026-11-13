@@ -1,0 +1,648 @@
+{
+  "id": "adam_mtrack",
+  "title": "TJM M Track Cluster",
+  "description": "An M Track style cover on the instrument cluster in Sport+: bar tachs to 7,000 rpm, gear and mph, side panels, shift-light slats. Off until you turn it on",
+  "version": "0.1.7",
+  "mguAppStartType": "autostart",
+  "vendor": "TJM",
+  "loggingId": "OB29",
+  "iconGlyph": "rpm",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs",
+      "statusEngineTemperature": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "statusGearboxDrive": "s",
+      "DataPowerTrain2": "s"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "statusFESVehicleDynamicSwitchHMI": "s",
+      "statusActualValueTorque2": "rs",
+      "statusSwitchDriveDynamicSport2": "rs",
+      "_optional": "the drive mode: without it the cover only shows with When to show = Always"
+    },
+    "de.bmw.infotainment.vehicle.CDS2": {
+      "statusLongitudinalAccelerationMassCenter": "rs",
+      "statusLateralAccelerationMassCenter": "rs",
+      "_optional": "the G-meter"
+    },
+    "de.bmw.infotainment.vehicle.TPMS": {
+      "statusTyrePressure": "rs",
+      "statusTyreTemperature": "rs",
+      "_optional": "tyre data"
+    },
+    "de.bmw.infotainment.KombiIF": {
+      "statusRangeTankStatus": "rs",
+      "statusBordcomputerAverage": "rs",
+      "statusBordcomputerTravelData": "rs",
+      "_optional": "fuel, range, trip data"
+    },
+    "de.bmw.infrastructure.EnvironmentalInformation": {
+      "ExteriorTemperature": "s",
+      "_optional": "outside temperature"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle": {
+      "statusNewCurrentUnitsStatusExt": "rs",
+      "_optional": "the car's display units (Units: Follow car)"
+    },
+    "de.bmw.infotainment.checkcontrol.CheckControlMaster": {
+      "basicList": "rs",
+      "_optional": "Check Control messages (Safety > BMW popups): used when the car sends them; Require keeps the cover off without them"
+    },
+    "de.bmw.infotainment.KombiInterface_2": {
+      "newCCMessage": "rs",
+      "_optional": "new Check Control messages"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM M Track Cluster",
+      "buttons": [
+        [
+          "BTN_COVER",
+          "Cover on/off"
+        ],
+        [
+          "BTN_ALL",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "coverOn",
+      "label": "Cover the cluster",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "whenToShow",
+      "label": "When to show",
+      "type": "choice",
+      "default": "sportplus",
+      "options": [
+        [
+          "sportplus",
+          "Sport+ only"
+        ],
+        [
+          "sport",
+          "Sport and above"
+        ],
+        [
+          "always",
+          "Always"
+        ]
+      ]
+    },
+    {
+      "key": "leftPanel",
+      "label": "Left panel",
+      "type": "choice",
+      "default": "coolant",
+      "reset": 1,
+      "options": [
+        [
+          "tyres",
+          "Tyre data"
+        ],
+        [
+          "gforce",
+          "G-meter"
+        ],
+        [
+          "trip",
+          "Trip data"
+        ],
+        [
+          "consumption",
+          "Consumption"
+        ],
+        [
+          "media",
+          "Entertainment"
+        ],
+        [
+          "modecol",
+          "Drive-mode column"
+        ],
+        [
+          "coolant",
+          "Coolant temperature"
+        ],
+        [
+          "boost",
+          "Boost"
+        ],
+        [
+          "torque",
+          "Torque"
+        ],
+        [
+          "power",
+          "Power"
+        ],
+        [
+          "oil",
+          "Oil temperature"
+        ],
+        [
+          "fuel",
+          "Fuel level"
+        ],
+        [
+          "range",
+          "Range"
+        ],
+        [
+          "iat",
+          "Intake air temperature"
+        ],
+        [
+          "oilpress",
+          "Oil pressure"
+        ],
+        [
+          "trans",
+          "Gearbox oil temperature"
+        ],
+        [
+          "xdrive",
+          "xDrive split"
+        ],
+        [
+          "volt",
+          "Battery voltage"
+        ],
+        [
+          "timer",
+          "0-60 mph timer"
+        ],
+        [
+          "dyno",
+          "Dyno peak"
+        ],
+        [
+          "warmup",
+          "Warm-up"
+        ],
+        [
+          "service",
+          "Service due"
+        ],
+        [
+          "none",
+          "Empty"
+        ]
+      ]
+    },
+    {
+      "key": "leftLower",
+      "label": "Left lower half",
+      "type": "choice",
+      "default": "oil",
+      "reset": 1,
+      "options": [
+        [
+          "tyres",
+          "Tyre data"
+        ],
+        [
+          "gforce",
+          "G-meter"
+        ],
+        [
+          "trip",
+          "Trip data"
+        ],
+        [
+          "consumption",
+          "Consumption"
+        ],
+        [
+          "media",
+          "Entertainment"
+        ],
+        [
+          "modecol",
+          "Drive-mode column"
+        ],
+        [
+          "coolant",
+          "Coolant temperature"
+        ],
+        [
+          "boost",
+          "Boost"
+        ],
+        [
+          "torque",
+          "Torque"
+        ],
+        [
+          "power",
+          "Power"
+        ],
+        [
+          "oil",
+          "Oil temperature"
+        ],
+        [
+          "fuel",
+          "Fuel level"
+        ],
+        [
+          "range",
+          "Range"
+        ],
+        [
+          "iat",
+          "Intake air temperature"
+        ],
+        [
+          "oilpress",
+          "Oil pressure"
+        ],
+        [
+          "trans",
+          "Gearbox oil temperature"
+        ],
+        [
+          "xdrive",
+          "xDrive split"
+        ],
+        [
+          "volt",
+          "Battery voltage"
+        ],
+        [
+          "timer",
+          "0-60 mph timer"
+        ],
+        [
+          "dyno",
+          "Dyno peak"
+        ],
+        [
+          "warmup",
+          "Warm-up"
+        ],
+        [
+          "service",
+          "Service due"
+        ],
+        [
+          "none",
+          "Empty"
+        ]
+      ]
+    },
+    {
+      "key": "rightPanel",
+      "label": "Right panel",
+      "type": "choice",
+      "default": "torque",
+      "options": [
+        [
+          "tyres",
+          "Tyre data"
+        ],
+        [
+          "gforce",
+          "G-meter"
+        ],
+        [
+          "trip",
+          "Trip data"
+        ],
+        [
+          "consumption",
+          "Consumption"
+        ],
+        [
+          "media",
+          "Entertainment"
+        ],
+        [
+          "modecol",
+          "Drive-mode column"
+        ],
+        [
+          "coolant",
+          "Coolant temperature"
+        ],
+        [
+          "boost",
+          "Boost"
+        ],
+        [
+          "torque",
+          "Torque"
+        ],
+        [
+          "power",
+          "Power"
+        ],
+        [
+          "oil",
+          "Oil temperature"
+        ],
+        [
+          "fuel",
+          "Fuel level"
+        ],
+        [
+          "range",
+          "Range"
+        ],
+        [
+          "iat",
+          "Intake air temperature"
+        ],
+        [
+          "oilpress",
+          "Oil pressure"
+        ],
+        [
+          "trans",
+          "Gearbox oil temperature"
+        ],
+        [
+          "xdrive",
+          "xDrive split"
+        ],
+        [
+          "volt",
+          "Battery voltage"
+        ],
+        [
+          "timer",
+          "0-60 mph timer"
+        ],
+        [
+          "dyno",
+          "Dyno peak"
+        ],
+        [
+          "warmup",
+          "Warm-up"
+        ],
+        [
+          "service",
+          "Service due"
+        ],
+        [
+          "none",
+          "Empty"
+        ]
+      ]
+    },
+    {
+      "key": "rightLower",
+      "label": "Right lower half",
+      "type": "choice",
+      "default": "power",
+      "options": [
+        [
+          "tyres",
+          "Tyre data"
+        ],
+        [
+          "gforce",
+          "G-meter"
+        ],
+        [
+          "trip",
+          "Trip data"
+        ],
+        [
+          "consumption",
+          "Consumption"
+        ],
+        [
+          "media",
+          "Entertainment"
+        ],
+        [
+          "modecol",
+          "Drive-mode column"
+        ],
+        [
+          "coolant",
+          "Coolant temperature"
+        ],
+        [
+          "boost",
+          "Boost"
+        ],
+        [
+          "torque",
+          "Torque"
+        ],
+        [
+          "power",
+          "Power"
+        ],
+        [
+          "oil",
+          "Oil temperature"
+        ],
+        [
+          "fuel",
+          "Fuel level"
+        ],
+        [
+          "range",
+          "Range"
+        ],
+        [
+          "iat",
+          "Intake air temperature"
+        ],
+        [
+          "oilpress",
+          "Oil pressure"
+        ],
+        [
+          "trans",
+          "Gearbox oil temperature"
+        ],
+        [
+          "xdrive",
+          "xDrive split"
+        ],
+        [
+          "volt",
+          "Battery voltage"
+        ],
+        [
+          "timer",
+          "0-60 mph timer"
+        ],
+        [
+          "dyno",
+          "Dyno peak"
+        ],
+        [
+          "warmup",
+          "Warm-up"
+        ],
+        [
+          "service",
+          "Service due"
+        ],
+        [
+          "none",
+          "Empty"
+        ]
+      ]
+    },
+    {
+      "key": "swapSides",
+      "label": "Swap sides",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "coverSlats",
+      "label": "Shift lights in the cover",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "units",
+      "label": "Units",
+      "type": "choice",
+      "default": "us",
+      "options": [
+        [
+          "us",
+          "US (mph, psi, F)"
+        ],
+        [
+          "metric",
+          "Metric (km/h, bar, C)"
+        ],
+        [
+          "car",
+          "Follow car"
+        ]
+      ]
+    },
+    {
+      "key": "bright",
+      "label": "Brightness",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "markDefault": true,
+      "steps": [
+        20,
+        40,
+        60,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "tachLead",
+      "label": "Tach lead",
+      "type": "number",
+      "unit": "ms",
+      "default": 0,
+      "markDefault": true,
+      "steps": [
+        0,
+        20,
+        40,
+        60,
+        80
+      ],
+      "labels": {
+        "0": "Off"
+      }
+    },
+    {
+      "key": "nightDim",
+      "label": "Night dim",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "popupGuard",
+      "label": "BMW popups (Check Control)",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Use when the car sends them"
+        ],
+        [
+          "require",
+          "Require them (cover stays off without)"
+        ],
+        [
+          "ignore",
+          "Ignore popups (risky)"
+        ]
+      ]
+    },
+    {
+      "key": "modeMissingDrop",
+      "label": "Drop the cover if the drive mode is missing",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "speedStaleMs",
+      "label": "Speed timeout (always on)",
+      "type": "number",
+      "default": 1000,
+      "markDefault": true,
+      "steps": [
+        500,
+        1000,
+        1500,
+        2000,
+        2500,
+        3000
+      ],
+      "labels": {
+        "500": "0.5 s",
+        "1000": "1 s",
+        "1500": "1.5 s",
+        "2000": "2 s",
+        "2500": "2.5 s",
+        "3000": "3 s"
+      }
+    },
+    {
+      "key": "demo",
+      "label": "Demo data",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto"
+        ],
+        [
+          "on",
+          "Always"
+        ],
+        [
+          "off",
+          "Never"
+        ]
+      ]
+    }
+  ]
+}

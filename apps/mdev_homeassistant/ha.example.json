@@ -1,0 +1,14 @@
+{
+  "url": "https://dein-home-assistant.example.org",
+  "token": "HIER-DEIN-LANGZEIT-TOKEN",
+  "control": false,
+  "webhookId": "",
+  "allowDemoSend": false,
+  "entities": [
+    { "entity": "light.wohnzimmer", "name": "Wohnzimmer", "allow": true },
+    { "entity": "switch.kaffeemaschine", "name": "Kaffee" },
+    { "entity": "scene.gute_nacht", "name": "Gute Nacht" },
+    { "entity": "sensor.wohnzimmer_temperatur", "name": "Wohnzimmer" },
+    { "entity": "cover.garagentor", "name": "Garagentor", "confirm": true }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "parked_games",
+  "title": "TJM Parked Games",
+  "description": "Small games for when the car is parked, played with the iDrive knob (and the touchscreen)",
+  "version": "0.2.2",
+  "vendor": "TJM",
+  "loggingId": "OB2C",
+  "iconGlyph": "PG",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.controlelements.FrontCCU": {
+      "statusRotaryEncoderState": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TJM Parked Games",
+      "bar": false,
+      "buttons": []
+    }
+  ],
+  "settings": []
+}

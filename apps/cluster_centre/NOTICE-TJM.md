@@ -6,3 +6,4 @@ Imported into the TJM apps from https://github.com/eroobeeroo/idrive7-cluster-in
 
 Needs on the head unit: cluster-render.
 Updated to the source's commit 10cefda018e5 on 2026-11-13 (was 92144564e922); the TJM changes kept.
+Its own kit modules from its source's kit (kit/: awake), which the new version needs and the TJM kit lacks.

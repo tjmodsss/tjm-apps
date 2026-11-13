@@ -241,6 +241,33 @@ test('settings: aliases, "when" and "group" (the drawn settings sheet), "hidden"
     const r = new Proxy({}, { get: (o, k) => (k === 'extra' ? 0 : () => 40) });
     sh.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
     assert.strictEqual(sh.focus, labels().length - 1);
+    // the app's own rows (ctx.settingsRow) at the very bottom; one opens its sheet in the settings' place, whose
+    // Back ('close', from the controller or a tap) returns to the settings, not out of them
+    const child = { drawn: 0, moved: 0, draw() { this.drawn++; return [{ x: 0, y: 0, w: 10, h: 10, act: () => 'close' }]; }, move(d) { this.moved += d; }, press: () => null, back: () => 'close' };
+    const sx = listSheet(st, null, { extra: () => [{ label: 'Logs', value: () => 'lately', open: () => child }] });
+    const rows = sx.rows(), last = rows[rows.length - 1];
+    assert.deepStrictEqual([last.label, last.value, last.kind], ['Logs', 'lately', 'more'], 'the extra row last');
+    sx.focus = rows.length - 1; sx.choose();
+    assert.strictEqual(sx.child, child, 'the row opens its sheet');
+    sx.move(2);
+    const tg = sx.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
+    assert.deepStrictEqual([child.drawn, child.moved, sx.focus], [1, 2, rows.length - 1], 'drawn and moved by the child');
+    assert.strictEqual(await tg[0].act(), null, "a child tap's 'close': not out of the settings");
+    assert.strictEqual(sx.child, null, 'back on the settings');
+    sx.choose(); assert.strictEqual(await sx.back(), null); assert.strictEqual(sx.child, null, 'its Back: the settings');
+    assert.strictEqual(sx.back(), 'close', 'then out');
+    sx.group = 'Tiles'; assert(!sx.rows().some((x) => x.label === 'Logs'), 'not inside a group');
+    // a child that throws while drawing: dropped (the error for display.js's log), the settings drawn next
+    sx.group = null;
+    const broken = { draw() { throw new Error('boom'); }, move() {}, press: () => null, back: () => 'close' };
+    const sb = listSheet(st, null, { extra: () => [{ label: 'Logs', open: () => broken }] });
+    sb.focus = sb.rows().length - 1; sb.choose();
+    assert.throws(() => sb.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' }), /boom/, 'its error goes up to be logged');
+    assert.strictEqual(sb.child, null, 'the child dropped');
+    sb.draw(r, { bg: '#000', text: '#fff', dim: '#888', sel: '#00f' });
+    // an extra row whose list fails: the settings without it
+    const sc = listSheet(st, null, { extra: () => { throw new Error('no rows'); } });
+    assert(sc.rows().length > 0 && !sc.rows().some((x) => x.label === 'Logs'), 'a failing extra list: the settings still');
 });
 
 test('a new scale keeps the uploads (the renderer keeps them), a new size sends them again', async () => {
@@ -253,6 +280,36 @@ test('a new scale keeps the uploads (the renderer keeps them), a new size sends 
         assert(!g.sent.layer.has(4), 'layers drawn at the old scale');
         g.place(Object.assign({}, pl, { w: pl.w - 8 }));
         assert.deepStrictEqual([g.sent.atlas.size, g.sent.ramp.size, g.sent.image.size], [0, 0, 0], 'a new size');
+    } finally { t.end(); }
+});
+
+test('in front without the controller (another renderer held it at connect): connected again, the controller then', async () => {
+    const t = await setup();
+    try {
+        // the renderer offering no controller on this connection, as when the Store's renderer held it
+        let conns = 0, now = null;
+        onConn = (c) => { conns++; now = c; c.send(X_READY, u32(1, 1, 7)); c.send(READY, u32(4, 1920, 720, 1)); };
+        t.d.gpu.info.controller = false; t.d.ctlTryT = 0;
+        t.c.send(X_STATE, u32(1, 0, 1));
+        assert(await waitFor(() => conns === 1 && t.d.gpu.ready && t.d.gpu.info && t.d.gpu.info.controller, 3000), 'connected again at once, the controller offered');
+        assert(await waitFor(() => t.d.gpu.grabbing, 1000), 'and taken');
+        // not again within 30 s, nor with the controller there
+        now.send(X_STATE, u32(1, 0, 1)); await sleep(200);
+        assert.strictEqual(conns, 1, 'once');
+        assert.strictEqual(t.d.ctlTries, 1, 'one try counted');
+    } finally { t.end(); }
+});
+
+test('iDrive 8 (the Store\'s renderer offers no controller there): never connected again for it', async () => {
+    const t = await setup();
+    try {
+        let conns = 0;
+        onConn = () => { conns++; };
+        t.d.gpu.screen = { w: 2880, h: 960 }; t.d.gpu.info.controller = false; t.d.ctlTryT = 0; t.d.ctlTries = 0;
+        t.d._ctlRetry(t.d.gpu);
+        await sleep(300);
+        assert.strictEqual(conns, 0, 'no new connection');
+        assert.strictEqual(t.d.ctlTries, 0, 'no try counted');
     } finally { t.end(); }
 });
 

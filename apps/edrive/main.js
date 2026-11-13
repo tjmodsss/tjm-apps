@@ -52,6 +52,7 @@ const { t: translate, plural } = require('./kit/i18n');
 const { RangeModel } = require('./range');
 const startLive = require('./live');
 const startBattery12 = require('./battery12');
+const Car = require('./kit/car');
 
 const W = 1600, H = 520;
 const GO = '#2fd27a';
@@ -88,6 +89,7 @@ const RESERVE = 8;               // engine-start charge (%) until two engine sta
 // in this zone teaches the range, and the range counts down to its top.
 const HOLD_TOP = 11;
 const ASLEEP_MS = 10 * 60000;     // a gap this long between charge readings: the car was off meanwhile
+const JUMP_PCT = 10;              // the charge this much higher than the reading before: charged meanwhile
 
 /**
  * Range of a full battery by outside temperature, for a car doing 50 km at 20 °C:
@@ -302,13 +304,23 @@ mgu.run({
         /** kWh in 1 % of charge today (size when new x health). */
         const kwhPerPct = () => settings.get('designKwh') * (G.isNum(live.soh) ? live.soh : 100) / 100 / 100;
 
+        // the car locked and left (its own state: parked or standby, nobody in it): nothing is read, so it can sleep
+        ctx.signals.watch('de.bmw.infrastructure.VehicleCondition', '1', {
+            VehicleCondition: (v) => {
+                const n = Car.conditionOf(v && v.statusConditionVehicle);
+                if (n === undefined || live.left === (n <= 3)) return;
+                live.left = n <= 3;
+                log.info(live.left ? 'the car is locked and left: no reads, so it can sleep' : 'the car is in use again');
+            },
+        }, log).catch((e) => log.warn('vehicle state: ' + (e && e.message || e)));
         ctx.signals.watch('de.bmw.infrastructure.EnvironmentalInformation', '1', {
             ExteriorTemperature: (v) => { const a = sc('ambient', v.temperatureExterior); if (a !== null) live.ambient = a; },
         }, log).then((s) => log.info('ambient ' + (s.error ? 'error: ' + s.error : 'subscribed')));
         ctx.signals.watch('de.bmw.infotainment.vehicle.Vehicle2', '1', {
             statusCarSpeed2: (v) => {
                 const k = v.speedVehicleCentreOfGravity;
-                live.speed = k === 65535 || k == null ? null : k * 0.015625;
+                // (65535: no value; over 400 km/h: not a real one, as sent while the car wakes)
+                live.speed = k == null || k * 0.015625 > 400 ? null : k * 0.015625;
                 // standing since (live.js: the measured climate draw)
                 if (G.isNum(live.speed) && live.speed > 1) live.standSince = 0;
                 else if (G.isNum(live.speed) && !live.standSince) live.standSince = Date.now();
@@ -351,6 +363,14 @@ mgu.run({
             statusDisplayElectricalPowerDistribution: (v) => { rawSeen('distribution', v); live.pd = entries(v, 'displayRepartitionDriveElectricPower')[0] || null; },
         }, log, { pollMs: 15000 }).then((s) => log.info('power distribution ' + (s.error ? 'error: ' + s.error : 'subscribed')));
         ctx.signals.watch('de.bmw.infotainment.drivingexcitement.Efficiencytainment2', '1', {
+            // the cluster's eDRIVE needle: electric drive and recuperation as shares of their most (live.js: the fast power)
+            statusPowerRelativHybrid: (v) => {
+                const e = entries(v, 'displayActualValuePowerRelativeDrivingElectric')[0];
+                if (!e) return;
+                const d = e.displayActualValuePowerRelativeDrivingElectric, r = e.displayActualValuePowerRelativeRecuperation;
+                if (!live.needleSeen) { live.needleSeen = true; log.info('eDRIVE needle: drive ' + d + ', regen ' + r); }
+                if (live.needleFn && typeof d === 'number' && typeof r === 'number' && d <= 254 && r <= 254) live.needleFn(d, r);
+            },
             statusBatteryTemperature: (v) => {
                 rawSeen('battery temp', v);
                 const e = entries(v, 'actualValueTemperatureHighVoltageStorage')[0];
@@ -439,7 +459,9 @@ mgu.run({
             seg.km = 0; seg.engine = G.isNum(live.rpm) && live.rpm > 400; seg.engineAll = seg.engine;
             seg.climate = live.climate; seg.climateMixed = false; seg.comfort = comfortKw();
             if (G.isNum(prev)) {
-                if (soc > prev + 0.3 && now - (st.lastSocT || now) > ASLEEP_MS
+                // (a jump of JUMP_PCT or more is a charge whatever the head unit's clock says - it can be off just after
+                // the head unit wakes - and whatever the speed: regen never adds that much between two readings)
+                if (soc > prev + 0.3 && (now - (st.lastSocT || now) > ASLEEP_MS || soc >= prev + JUMP_PCT)
                     && soc >= (st.session ? st.session.from : prev) + cfg.chargeMinPct) {
                     // charged while the car was off (also one that began while the head unit was still awake):
                     // the charge runs up to this reading. The car wakes now and then during a long charge, so the
@@ -563,17 +585,20 @@ mgu.run({
 
         let busy = false, pollTimer = null;
         let sohFailT = 0, last48Try = 0;
+        let pollMs = 0;
         async function poll(forceSoh) {
             if (busy) return;
             busy = true;
+            const t0 = Date.now();
             try {
                 // no hybrid system: parked (not driven, the page not used lately) nothing is read, so the car can sleep
-                if (diag.available && (kind() !== 'none' || b12.allowed(forceSoh))) {
+                if (diag.available && (forceSoh || !live.left) && (kind() !== 'none' || b12.allowed(forceSoh))) {
                     // 12 V: every poll, from the source that answered last (after 3 failures in a row only every 5 minutes)
                     const v12 = await b12.readVolt(forceSoh);
                     // without a hybrid system only re-check the battery unit every 5 minutes
+                    // (and not while the 12 V page is up: those units' timeouts would hold up the voltage)
                     const noHy = st.noHybrid && settings.get('hybrid') !== 'yes';
-                    if (!noHy || forceSoh || Date.now() - lastSocTry > 300000) {
+                    if (!noHy || forceSoh || (Date.now() - lastSocTry > 300000 && !b12.fast())) {
                         lastSocTry = Date.now();
                         const soc = await readValue('soc');
                         if (soc !== null) { live.soc = soc; live.socT = Date.now(); onSoc(soc, live.socT); }
@@ -590,19 +615,20 @@ mgu.run({
                     // no high-voltage battery: a 48 V one (looked for while not known, then every 5 minutes while
                     // there is none), and the 12 V battery's own values
                     const k = kind(), auto = settings.get('hybrid') === 'auto';
-                    if (k === 'mhev' || (auto && k === 'none' && (!st.no48 || forceSoh || Date.now() - last48Try > 300000))) {
+                    if (k === 'mhev' || (auto && k === 'none' && (!st.no48 || forceSoh || (Date.now() - last48Try > 300000 && !b12.fast())))) {
                         last48Try = Date.now();
                         await read48(v12 !== null);
                     }
                     if (kind() !== 'phev') await b12.readValues(forceSoh);
                 }
             } catch (e) { log.warn('poll: ' + e); }
+            pollMs = Date.now() - t0;
             busy = false;
         }
         function schedule() {
             clearTimeout(pollTimer);
-            // the 12 V pages up and in use: every 2 s (what the battery does, the voltage's last minutes)
-            pollTimer = setTimeout(() => poll(false).then(schedule), b12.fast() ? 2000 : settings.get('poll') * 1000);
+            // the 12 V pages up and in use: the voltage every second (what the battery does, the last minutes)
+            pollTimer = setTimeout(() => poll(false).then(schedule), b12.fast() ? Math.max(250, b12.FAST_MS - pollMs) : settings.get('poll') * 1000);
         }
         diag.on('available', (a) => { if (a) poll(false); });
         poll(false).then(schedule);
@@ -705,27 +731,50 @@ mgu.run({
             const km = G.isNum(soc) ? estimate(soc, live.ambient, null, paceNow(), comfortKw()).mid : null;
             return (G.isNum(km) ? Math.round(D(km)) : '--') + ' ' + dU();
         };
-        const lv = startLive(ctx, { diag, reader, exclusive, live, climateKw, rangeText, page: () => (pages()[page] === 'diag' ? 'scan' : pages()[page]) });
+        let share = () => {};          // (below) the power, charge and range for other apps
+        const lv = startLive(ctx, { diag, reader, exclusive, live, climateKw, rangeText, kind: () => kind(), page: () => (pages()[page] === 'diag' ? 'scan' : pages()[page]),
+            onPower: () => share() });
         const isLive = (p) => lv.PAGES.indexOf(p) >= 0;
 
-        /* ---------- for other apps (Cluster functions' HUD): the power now and the range, four times a second ----------
+        /* ---------- for other apps (Cluster functions' HUD and cluster): the power now, the charge and the range ----------
          * SHARED, a file anyone may read (an app cannot read another's data folder): { t, kw (+ the battery gives power,
-         * - it takes it; null while not read), soc, rangeKm (the range at this charge, as the Range page has it) }.
-         * Nothing while the demo runs. */
-        const SHARED = '/tmp/mgu-edrive.json';
-        setInterval(() => {
+         * - it takes it; null while not read; as fast as the car's eDRIVE needle with setting kwFast), kwRead (the battery's
+         * last reading), fast (kw is the fast one), limitOut, limitIn (the kW the battery allows now), soc, rangeKm (the
+         * range at this charge, as the Range page has it) }.
+         * Written at each new power reading (at most every SHARE_MIN_MS) and four times a second; nothing while the
+         * demo runs. live.js reads the power fast while another app asks for it (its WANTED). */
+        const SHARED = '/tmp/mgu-edrive.json', SHARE_MIN_MS = 80, CI_FILE = '/dev/shm/cluster-info/edrive.json';
+        let sharedAt = 0;
+        share = () => {
+            if (Date.now() - sharedAt < SHARE_MIN_MS) return;
+            sharedAt = Date.now();
             try {
                 const d = data();
                 if (d.demo) return;
                 const p = lv.powerNow({});
                 const e = G.isNum(d.soc) && !d.stale ? estimate(d.soc, d.ambient, d.climate, d.pace, comfortKw(d)) : null;
+                const ps = lv.powerShare();
                 const out = { t: Date.now(), kw: p && G.isNum(p.kw) ? +p.kw.toFixed(1) : null, soc: G.isNum(d.soc) && !d.stale ? d.soc : null,
-                    rangeKm: e && G.isNum(e.mid) ? Math.round(e.mid) : null };
+                    rangeKm: e && G.isNum(e.mid) ? Math.round(e.mid) : null,
+                    kwRead: G.isNum(ps.kwRead) ? +ps.kwRead.toFixed(1) : null, fast: ps.fast,
+                    limitOut: G.isNum(ps.out) ? Math.round(ps.out) : null, limitIn: G.isNum(ps.in) ? Math.round(ps.in) : null };
                 fs.writeFileSync(SHARED + '.tmp', JSON.stringify(out), { mode: 0o644 });
                 fs.chmodSync(SHARED + '.tmp', 0o644);
                 fs.renameSync(SHARED + '.tmp', SHARED);
+                // Cluster Info and its family (eroobeeroo/idrive7-cluster-info) read providers' files in their folder, in
+                // their format, while they ask for the power (wanted*.json there): ours as edrive.json
+                if (lv.clusterInfoWants()) {
+                    const ci = { v: 1, t: out.t, app: 'eDrive', values: {} };
+                    if (G.isNum(out.kw)) ci.power = { kw: out.kw, outMax: out.limitOut || 100, inMax: out.limitIn || 60, old: false };
+                    if (G.isNum(out.soc)) ci.values.soc = { pct: out.soc };
+                    const bt = d.batt && G.isNum(d.batt.avg) ? d.batt.avg : null;
+                    if (G.isNum(bt)) ci.values.battery = { c: bt };
+                    fs.writeFileSync(CI_FILE + '.tmp', JSON.stringify(ci), { mode: 0o644 });
+                    fs.renameSync(CI_FILE + '.tmp', CI_FILE);
+                }
             } catch (e) { /* the next write tries again */ }
-        }, 250);
+        };
+        setInterval(share, 250);
         // the first bar button: "Read now", on the live pages their own action (this drive's totals, the scan)
         let actionText = 'Read now';
         const actionLabel = () => {

@@ -82,6 +82,16 @@ process.on('exit', (code) => fileLog(code ? 'FATAL' : 'INFO', 'exit code ' + cod
 
 /* ---------------- settings (persisted in data/settings.json) ---------------- */
 class Settings {
+    /**
+     * Write a file whole or not at all: a temp file renamed over it (a reader or a power cut never sees half).
+     * In the class: hu-stub.js and test_runtime.js run this class on its own, cut from this file.
+     */
+    static writeWhole(file, text) {
+        const tmp = file + '.' + process.pid + '.tmp';
+        fs.writeFileSync(tmp, text);
+        fs.renameSync(tmp, file);
+    }
+
     constructor(schema) {
         this.schema = schema || [];
         this.file = path.join(DATA_DIR, 'settings.json');
@@ -100,7 +110,7 @@ class Settings {
             this.values._themeV = 2;            // (a fresh install has the default: the mark is saved with its first setting)
             if (saved) {
                 this.values.theme = th.default;
-                try { fs.writeFileSync(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { /* read-only */ }
+                try { Settings.writeWhole(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { /* read-only */ }
             }
         }
         // a setting with "reset": n in app.json goes back to its default once when n changes
@@ -110,12 +120,12 @@ class Settings {
             const mark = '_reset_' + it.key;
             if (it.reset && this.values[mark] !== it.reset) { this.values[it.key] = it.default; this.values[mark] = it.reset; changed = true; }
         }
-        if (changed && fs.existsSync(this.file)) try { fs.writeFileSync(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { /* read-only */ }
+        if (changed && fs.existsSync(this.file)) try { Settings.writeWhole(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { /* read-only */ }
     }
     get(key) { return this.values[key]; }
     set(key, value) {
         this.values[key] = value;
-        try { fs.writeFileSync(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { log.warn('settings save: ' + e); }
+        try { Settings.writeWhole(this.file, JSON.stringify(this.values, null, 1)); } catch (e) { log.warn('settings save: ' + e); }
         this.listeners.forEach((fn) => { try { fn(key, value); } catch (e) { log.error(e); } });
     }
     onChange(fn) { this.listeners.push(fn); }
@@ -150,6 +160,9 @@ class Settings {
     }
 }
 
+/* iDrive 7 cells -> iDrive 8's on a button (LT_Button_MediaEntry_1Row; kit/tools/build.py CELLS8) */
+const CELLS8 = { Text: 'PrimaryText', Text1stRow: 'PrimaryText', Text1stCol: 'PrimaryText', Text2ndRow: 'FrequencyText', Text2ndCol: 'FrequencyText' };
+
 /* ---------------- UI wrapper ---------------- */
 class Ui {
     constructor(app) {
@@ -162,6 +175,17 @@ class Ui {
         this._focusHandlers = [];
         this.timing = { png: 0, push: 0 };    // ms spent encoding / handing images to the HMI
         this._cnText = new HmiText();
+        // iDrive 8: the HMI installed the app's iDrive 8 description (kit/tools/build.py), known by its hidden
+        // label. Its buttons are list rows with other cells (PrimaryText, FrequencyText), it has no drop-downs.
+        this.id8 = !!(this.rhmi && this.rhmi.getByName && this.rhmi.getByName('KIT_HMI_ID8'));
+        if (this.id8) log.info('ui: iDrive 8 screens');
+    }
+    /** The cell of a write on this HMI: on iDrive 8 an iDrive 7 cell name the component's row does not have as
+     *  iDrive 8's (a button's Text is its PrimaryText; a label keeps Text). */
+    _cell(c, cell) {
+        if (!this.id8 || !CELLS8[cell]) return cell;
+        const d = c && c._uiDescription, r = d && d.rows && d.rows[0];
+        return r && Object.prototype.hasOwnProperty.call(r, cell) ? cell : CELLS8[cell];
     }
     comp(name) {
         const c = this.rhmi && this.rhmi.getByName(name);
@@ -177,13 +201,13 @@ class Ui {
     text(name, text, row, cell) {
         const c = this.comp(name);
         if (c && !row && (!cell || cell === 'Text') && this.display) this.display.label(name, text);   // slim bar mirrors it
-        return c ? this._try('text ' + name, this._cnText.set(c, name, row || 0, cell || 'Text', text)) : Promise.resolve();
+        return c ? this._try('text ' + name, this._cnText.set(c, name, row || 0, this._cell(c, cell || 'Text'), text)) : Promise.resolve();
     }
     /** Set several cells of one row: ui.cells('LIST', 3, { Text1stCol: 'a', Text2ndCol: 'b' }) */
     cells(name, row, obj) {
         const c = this.comp(name);
         if (!c) return Promise.resolve();
-        return Promise.all(Object.keys(obj).map((k) => this._try('cell ' + name + '.' + k, this._cnText.set(c, name, row, k, obj[k]))));
+        return Promise.all(Object.keys(obj).map((k) => this._try('cell ' + name + '.' + k, this._cnText.set(c, name, row, this._cell(c, k), obj[k]))));
     }
     /** Selected row of a drop-down menu. */
     selected(name, row) {
@@ -196,6 +220,7 @@ class Ui {
     checked(name, on, row) {
         const c = this.comp(name);
         if (!c) return Promise.resolve();
+        if (this.id8) return this._try('checked ' + name, this._cnText.set(c, name, row || 0, 'FrequencyText', on ? 'On' : 'Off'));
         // setValue creates the row if needed (setRowSelected only checks and fails)
         const p = c.setValue(row || 0, 'eParam_RowSelected', !!on, 'Bool');
         return this._try('checked ' + name, p);
@@ -445,19 +470,23 @@ class Widget {
 }
 
 /* ---------------- generic settings screen ---------------- */
+// the app's own rows at the bottom of the settings where the kit draws them (ctx.settingsRow)
+const settingsRows = [];
 function wireSettings(ctx) {
     const { ui, settings } = ctx;
-    const schema = settings.schema;
+    // hidden settings (kept by the app itself, never on a screen) have no component to look up
+    const schema = settings.schema.filter((s) => !s.hidden);
     // the settings screen, or an app's own menu screen that shows them ("settings": true)
     if (!schema.length || !schema.some((s) => ui.comp('SET_' + s.key.toUpperCase()))) return;
     // choice / number settings are drop-downs (kit/tools/build.py): their rows are the values in this order
-    const values = (s) => (s.type === 'choice' ? (s.options || []).map((o) => o[0]) : s.type === 'number' ? s.steps || [] : null);
+    // (iDrive 8 has no drop-downs: there every setting is a row, label | value, a press steps to the next value)
+    const values = (s) => (ui.id8 ? null : s.type === 'choice' ? (s.options || []).map((o) => o[0]) : s.type === 'number' ? s.steps || [] : null);
     const refresh = () => Promise.all(schema.map((s) => {
         const comp = 'SET_' + s.key.toUpperCase();
         if (!ui.comp(comp)) return null;
         // one another setting offers it ("when"): shown or not as that one is
         if (s.when) ui.visible(comp, settings.shown(s));
-        if (s.type === 'bool') return Promise.all([ui.text(comp, s.label), ui.checked(comp, !!settings.get(s.key))]);
+        if (s.type === 'bool' && !ui.id8) return Promise.all([ui.text(comp, s.label), ui.checked(comp, !!settings.get(s.key))]);
         if (values(s)) return ui.selected(comp, Math.max(0, values(s).indexOf(settings.get(s.key))));
         // other types: two-row buttons in the wide settings state, label above, value below
         return ui.cells(comp, 0, { Text1stRow: s.label, Text2ndRow: settings.display(s.key) });
@@ -479,7 +508,7 @@ function wireSettings(ctx) {
         ui.onClick('BTN_SETTINGS', () => {
             const d = ctx.display;
             if (d.sheet && d.sheet.settings) { d.closeSheet(); return null; }
-            const sh = listSheet(settings, null, { version: SPEC.version });
+            const sh = listSheet(settings, null, { version: SPEC.version, extra: () => settingsRows });
             sh.settings = true;
             sh.onClose = () => refresh();
             if (d.openSheet(sh)) return null;
@@ -527,6 +556,17 @@ async function runInner(impl) {
     }
     await app.start();
     active();
+    const settings = new Settings(SPEC.settings);
+    // impl.background(bg): what the app does with or without its screens (app.json "autostart": true, an app the
+    // platform starts by itself); bg = { app, log, settings, signals, spec, dataDir }. What it returns is
+    // ctx.background for impl.start.
+    let background = null;
+    if (impl && impl.background) {
+        try {
+            background = await impl.background({ app, log, settings, signals: require('./signals'), spec: SPEC, dataDir: DATA_DIR });
+        } catch (e) { log.error('background start: ' + (e && e.stack || e)); }
+        if (!app.rhmiApplication) { log.info('no screens for this start: running in the background'); return; }
+    }
     if (!app.rhmiApplication) {
         // The SDK did not create the app's screens: nothing can be shown. Stay up (idle) rather than throw: a
         // crash makes CorruptAppsHandler wipe the app's data, and a second one uninstalls it (issue #39).
@@ -537,11 +577,10 @@ async function runInner(impl) {
         return;
     }
     const ui = new Ui(app);
-    const settings = new Settings(SPEC.settings);
     const display = new Display(ui, log, SPEC, settings, () => themes.theme(settings.get('theme')));
     ui.display = display;
     const ctx = {
-        app, ui, settings, log, spec: SPEC, dataDir: DATA_DIR, display, widget,
+        app, ui, settings, log, spec: SPEC, dataDir: DATA_DIR, display, widget, background,
         signals: require('./signals'),
         theme: () => themes.theme(settings.get('theme')),
         /**
@@ -561,6 +600,12 @@ async function runInner(impl) {
         onTab(fn) { display.onTab = fn; },
         /** onTap(fn): fn(x, y) for a tap on the page (app drawing px), where the kit runs the screen. */
         onTap(fn) { display.onTap = fn; },
+        /**
+         * settingsRow({ label, value, open }): a row of the app's own at the very bottom of Settings, where the kit
+         * draws them (the GPU renderer); value: text or () => text; open(): a sheet (sheet.js) shown in the settings'
+         * place, its Back ('close') back to them. The HMI's own settings screen has no such row.
+         */
+        settingsRow(row) { if (row && row.label) settingsRows.push(row); },
         /** Show a sheet (sheet.js) over the page; false where it can't be (software path, other renderers). */
         sheet(sh) { return display.openSheet(sh); },
         /** hideButton(id): leave bar button id out where the kit runs the screen (its job is on the page there). */

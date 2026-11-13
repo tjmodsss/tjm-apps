@@ -16,10 +16,12 @@
  *
  *   const lim = new Limiter({ dataDir, log });
  *   lim.feed(tMs, { rpm, gear, speed, warm }, floor, ceil);   // every live sample
- *   lim.value()   -> rpm or null;  lim.onChange(fn);  lim.forget()
+ *   lim.value()   -> rpm or null;  lim.waiting() -> the first plateau's rpm or null;
+ *   lim.onChange(fn);  lim.forget()
  */
 const fs = require('fs');
 const path = require('path');
+const { writeAtomic } = require('./files');
 
 // the plateau is judged on the last HOLD_MS only, so the end of the run up to it doesn't count
 const HOLD_MS = 500, BAND = 200, TREND = 60, WINDOW_MS = HOLD_MS + 20;
@@ -40,6 +42,8 @@ class Limiter {
     }
 
     value() { return this.saved; }
+    /** The first plateau, waiting for a second to confirm it (rpm), or null. Kept in memory only. */
+    waiting() { return this.saved === null && typeof this.pending === 'number' ? this.pending : null; }
     onChange(fn) { this.listeners.push(fn); }
 
     forget() {
@@ -97,7 +101,7 @@ class Limiter {
         }
         this.log.info('limiter: learned ' + rpm + ' rpm' + (this.saved !== null ? ' (was ' + this.saved + ')' : ''));
         this.saved = rpm; this.at = Date.now();
-        try { fs.writeFileSync(this.file + '.tmp', JSON.stringify({ rpm: rpm, at: this.at })); fs.renameSync(this.file + '.tmp', this.file); } catch (e) { this.log.warn('limiter save: ' + e); }
+        writeAtomic(this.file, JSON.stringify({ rpm: rpm, at: this.at }), this.log, 'limiter save');
         this._emit();
     }
 

@@ -1,4 +1,2 @@
-c34abcb98859a6968d3814c8273c705d6087fffedcad0baf74510882504a1dfe
+eb114a95b07471ec3fa3578ea8b23626e563a4930c7ef87840cab5fe5dcf3aba
 # sha256 of kit/renderd src/, inputgate/*.cpp, protocol/*.xml, docker/, Makefile (make_kit.py source_hash) this binary was built from
-# TJM 2026-11-08: was c59b7f96... (CI build of 1d8f5bf). The only change since is upstream 8403a53, one line in the
-# Makefile's in-test target (node test/test_gate_apps.js): nothing the binary is compiled from, so this binary is the same.

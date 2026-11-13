@@ -6,6 +6,7 @@ const { Audio } = require('./audio');
 const { Storage } = require('./storage');
 const { draw } = require('./view');
 const DSP = require('./kit/dsp-client');
+const { MusicPlayer } = require('./test_music');
 
 const TABS = ['DSP', 'BMW-Klang', 'Profile', 'Einrichten', 'Diagnose'];
 const PROFILES = [ ['neutral', 'Neutral'], ['bass', 'Bass'], ['voice', 'Stimme'], ['1', 'Eigenes Profil 1'], ['2', 'Eigenes Profil 2'], ['3', 'Eigenes Profil 3'] ];
@@ -17,7 +18,8 @@ mgu.run({
         const s = { page: 0, selected: { eq: 0, tone: 0, setup: 7, profile: 0 }, current: {}, draft: {}, base: {},
             snapshot: null, status: 'Audioverbindung wird aufgebaut …', busy: false, connected: false,
             store, audio, tabs: TABS, profiles: PROFILES, diagnostics: '', targets: [],
-            dspOnline: false, dspStatus: null, dspConfig: DSP.defaults(), dspDraft: null, dspBaseRevision: null, dspParameter: 0 };
+            dspOnline: false, dspStatus: null, dspConfig: DSP.defaults(), dspDraft: null, dspBaseRevision: null, dspParameter: 0,
+            testMusic: { status: 'idle', detail: 'Night Drive · 32 s · Originalmusik', playing: false } };
         const dspOpts = { runtime: ctx.dspRuntime || process.env.MGU_DSP_RUNTIME || DSP.RUNTIME };
         const dspRequest = ctx.dspRequest || DSP.request;
         let renderLoop, eventTimer = null, lastRefresh = 0;
@@ -25,6 +27,12 @@ mgu.run({
         const controls = () => C.CONTROLS.filter((c) => c.group === (s.page === 1 ? 'tone' : 'eq'));
         const selected = () => s.page === 3 ? C.CONTROLS[s.selected.setup] : controls()[s.selected[s.page === 1 ? 'tone' : 'eq']];
         function message(text) { s.status = text; if (renderLoop) renderLoop.kick(); }
+        const testPlayer = new MusicPlayer({ dspRuntime: dspOpts.runtime,
+            onState: (info) => {
+                s.testMusic = info;
+                if (info.status === 'error') s.diagnostics = info.detail;
+                message(info.detail);
+            } });
         async function run(fn) {
             if (s.busy) return;
             s.busy = true; renderLoop && renderLoop.kick();
@@ -50,14 +58,13 @@ mgu.run({
         }
         function editDsp(fn) {
             if (s.busy) return;
-            if (store.state.learning) return message('BMW-Einrichtung zuerst abschließen oder abbrechen.');
+            // OEM tone calibration is unrelated to software DSP. Never block DSP editing.
             if (!s.dspDraft) { s.dspDraft = JSON.parse(JSON.stringify(s.dspConfig)); s.dspBaseRevision = s.dspStatus && s.dspStatus.revision; }
             fn(s.dspDraft);
             if (JSON.stringify(s.dspDraft) === JSON.stringify(s.dspConfig)) s.dspDraft = null;
             message(s.dspDraft ? 'DSP-Änderungen vorbereitet · Mit Übernehmen aktivieren' : 'Keine offenen DSP-Änderungen');
         }
         async function applyDsp() {
-            if (store.state.learning) throw new Error('BMW-Einrichtung zuerst abschließen oder abbrechen.');
             if (!s.dspDraft) return message('Keine DSP-Änderungen vorbereitet.');
             if (!s.dspOnline || s.dspBaseRevision === null) throw new Error('DSP-Dienst nicht verbunden. Abhängigkeit im MGU Store installieren und neu lesen.');
             const expected = s.dspBaseRevision;
@@ -94,7 +101,9 @@ mgu.run({
         }
         async function apply() { return s.page === 0 || s.page === 2 && s.dspDraft ? applyDsp() : applyNative(); }
         function page(i) {
-            s.page = (i + TABS.length) % TABS.length;
+            const target = (i + TABS.length) % TABS.length;
+            if (s.page === 0 && target !== 0) testPlayer.stop();
+            s.page = target;
             labels(); renderLoop && renderLoop.kick();
         }
         function next() {
@@ -134,6 +143,7 @@ mgu.run({
                 s.dspDraft = config;
                 return message(PROFILES[s.selected.profile][1] + ' als DSP-Entwurf geladen · Mit Übernehmen aktivieren');
             }
+            if (store.state.learning) throw new Error('BMW-Einrichtung zuerst abschließen oder abbrechen.');
             const values = /^[123]$/.test(id) ? (() => {
                 const p = store.state.profiles[id];
                 if (!p) throw new Error('Dieser Profilplatz ist noch leer.');
@@ -154,7 +164,7 @@ mgu.run({
             message(PROFILES[s.selected.profile][1] + ' vorbereitet · Übernehmen aktiviert den Klang');
         }
         function saveProfile() {
-            if (store.state.learning) throw new Error('Einrichtung zuerst abschließen.');
+            // DSP profile save is independent of an OEM tone-control calibration.
             const slot = PROFILES[s.selected.profile][0];
             if (!/^[123]$/.test(slot)) throw new Error('Zum Speichern einen eigenen Profilplatz auswählen.');
             const config = JSON.parse(JSON.stringify(s.dspDraft || s.dspConfig));
@@ -162,7 +172,7 @@ mgu.run({
             message('DSP-Profil ' + slot + ' gespeichert');
         }
         function startLearning() {
-            if (Object.keys(s.draft).length || s.dspDraft) throw new Error('Offene Klangänderungen zuerst übernehmen oder verwerfen.');
+            if (Object.keys(s.draft).length) throw new Error('Offene BMW-Klangänderungen zuerst übernehmen oder verwerfen.');
             store.update((v) => { v.learning = { control: selected().id, shots: [] }; });
             message('BMW-Klangregler auf Mitte stellen, dann Messung erfassen.'); labels();
         }
@@ -217,17 +227,19 @@ mgu.run({
             gain(i, db) { editDsp((v) => { v.bands[i].gainDb = C.clamp(Math.round(db * 2) / 2, -12, 12); }); },
             parameter() { s.dspParameter = (s.dspParameter + 1) % 4; message('DSP-Regler: ' + ['Gain in dB', 'Frequenz in Hz', 'Q / Bandbreite', 'Vorverstärkung in dB'][s.dspParameter]); },
             toggleDsp() { editDsp((v) => { v.enabled = !v.enabled; }); },
+            testMusic() { if (!s.busy && s.page === 0) testPlayer.toggle(); },
             headroom() { editDsp((v) => { v.autoHeadroom = !v.autoHeadroom; }); },
             profile(i) { if (!s.busy) s.selected.profile = i; },
             apply: () => run(apply), next, adjust,
             neutral() { if (s.page === 0) return editDsp((v) => { v.bands[s.selected.eq].gainDb = 0; }); const c = selected(); if (bindings()[c.id]) stage(c.id, bindings()[c.id].center); },
             discard() { if (s.busy) return; s.draft = {}; s.base = {}; s.dspDraft = null; message('Vorbereitete Änderungen verworfen'); },
-            load: () => run(async () => { if (store.state.learning) throw new Error('Einrichtung zuerst abschließen.'); loadProfile(); }),
+            load: () => run(async () => loadProfile()),
             save: () => run(async () => saveProfile()), capture: () => run(capture),
             cancel: () => run(async () => cancelLearning()),
             setup: () => run(async () => startLearning()), export: () => run(primary),
         };
         ui.onClick('BTN_NEXT', next);
+        ui.onClick('BTN_MUSIC', () => actions.testMusic());
         ui.onClick('BTN_PARAM', () => { if (s.page === 0 && !s.busy) actions.parameter(); });
         ui.onClick('BTN_DEC', () => run(async () => {
             if (s.page === 2) saveProfile();
@@ -237,7 +249,7 @@ mgu.run({
             labels();
         }));
         ui.onClick('BTN_INC', () => run(async () => {
-            if (s.page === 2) { if (store.state.learning) throw new Error('Einrichtung zuerst abschließen.'); loadProfile(); }
+            if (s.page === 2) { loadProfile(); }
             else if (s.page === 3) await capture();
             else if (s.page === 4) { await audio.connect(); await read(); message(s.connected ? 'Audioverbindung bereit' : 'Keine Audioantwort · Diagnose prüfen'); }
             else { s.busy = false; adjust(1); s.busy = true; }
@@ -256,7 +268,12 @@ mgu.run({
             draw(cv, theme, s, actions); await ui.image('MAIN_GFX', cv);
         }
         renderLoop = ctx.loop('MAIN', 3, render);
-        ui.onVisible((name, visible) => { if (name === 'MAIN' && visible && Date.now() - lastRefresh > 3000 && !s.busy) run(read); });
+        ui.onVisible((name, visible) => {
+            if (name !== 'MAIN') return;
+            if (!visible) testPlayer.stop();
+            else if (Date.now() - lastRefresh > 3000 && !s.busy) run(read);
+        });
+        process.once('exit', () => testPlayer.stop());
         audio.onChange = () => {
             clearTimeout(eventTimer);
             eventTimer = setTimeout(() => { if (!s.busy && ui.isVisible('MAIN')) run(read); }, 450);

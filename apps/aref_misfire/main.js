@@ -25,7 +25,7 @@ const { DidReader } = require('./dids');
 const T = require('./track');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 const W = 1600, H = 520;
 const DME = 0x12;                  // the engine unit
 const MID0 = 0xA2;                 // misfire monitor of cylinder 1 (A3 = 2 ...)
@@ -245,6 +245,17 @@ mgu.run({
                     sub: n ? 'Most on cylinder ' + tr.worst(tr.state.drive.counts) : 'All cylinders clean', sub2: last,
                     tone: sev === 'many' ? 'crit' : sev === 'few' ? 'warn' : 'ok', small: [n ? n + ' misfires this drive' : 'No misfires this drive', last] };
             });
+            // 0.1.1: Car Watch replaces this app. A copy of the data for Car Watch to bring over on its first start
+            // (/dev/shm: memory only, gone at the next head-unit restart, so install Car Watch before that).
+            const handoff = guard('handoff', () => {
+                const dir = '/dev/shm/aref-handoff-' + ctx.spec.id;
+                try { fs.mkdirSync(dir, 0o755); } catch (e) { /* there already */ }
+                ['misfires.json',  'misfires.csv'].forEach((f) => {
+                    try { fs.writeFileSync(path.join(dir, f), fs.readFileSync(path.join(ctx.dataDir, f)), { mode: 0o644 }); fs.chmodSync(path.join(dir, f), 0o644); } catch (e) { /* not written yet */ }
+                });
+            });
+            handoff();
+            setInterval(handoff, 60000);
             log.info('started ' + VERSION + ' (' + tr.state.events.length + ' misfires, ' + tr.state.drives.length + ' drives kept)');
         } catch (e) {
             log.error('start: ' + (e && e.stack || e));

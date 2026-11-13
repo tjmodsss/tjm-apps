@@ -1,4 +1,4 @@
-# Equalizer DSP 0.2.0 — MGU / iDrive 7
+# Equalizer DSP 0.2.2 — MGU / iDrive 7
 
 Sieben echte parametrische Software-DSP-Bänder ergänzen die bisherige BMW-Klangsteuerung. Die Filter bearbeiten PCM-Audiosamples; sie sind unabhängig davon, ob das Fahrzeug ab Werk einen Siebenband-Equalizer anbietet.
 
@@ -10,7 +10,18 @@ Quelle **NamelsMissing/mgu-apps**, Kanal **main** aktualisieren und **Equalizer 
 
 Der Store baut das App-Paket auf der MGU mit deren eigenem SDK. Das Repository enthält keine BMW-SDK-Dateien oder Diagnose-PRGs.
 
+## Originale Testmusik (0.2.2)
+
+Auf der Seite **DSP** startet die Taste **Testmusik** das etwa 32 Sekunden lange, eigens für dieses Projekt komponierte Instrumentalstück *Night Drive*. Die Melodie, Akkorde, Basslinie und Percussion werden lokal synthetisiert; es wird weder ein fremdes Musikstück noch eine fremde Tonaufnahme verwendet. Die Originalkomposition kann frei im Projekt verwendet werden, ohne Musik-Lizenzabgaben. Die Wiedergabe benötigt kein Internet.
+
+Die Audiokette ist `Testmusik (S16LE Stereo/44,1 kHz) → bestehender PCM DSP → aplay (ALSA-Standardausgang)`; CarPlay- oder BMW-Audioprozesse werden nicht verändert. **Stop** beendet die Wiedergabe sofort. Beim Verlassen der App oder des DSP-Tabs wird die Wiedergabe ebenfalls gestoppt. Die Testmusik läuft nie automatisch an. Die DSP-Einstellungen dürfen während der Wiedergabe geändert werden; für einen A/B-Vergleich **Bypass / DSP ein** und **DSP übernehmen** nutzen.
+
+**Wichtig:** Der tatsächliche ALSA-Ausgang zum BMW-Audiosystem ist noch nicht nachgewiesen. Wenn `aplay` fehlt oder der Audiopfad nicht nutzbar ist, zeigt die App eine Fehlermeldung, anstatt hörbaren Ton vorzutäuschen. Ein `DSP LIVE`-Framezähler bestätigt nur verarbeitete PCM-Daten, nicht die Lautsprecherausgabe. Zunächst bei stehendem Fahrzeug und niedriger Lautstärke testen. Die Testmusik wird absichtlich nicht als Fahrzeugaudio-Funktion ausgegeben und kann normalen Ton überlagern.
+
 ## DSP bedienen
+
+**Fix in 0.2.1:** Die DSP-Bänder, Bypass und DSP-Profile lassen sich auch bei noch offener BMW-Regler-Messung bedienen; eine fehlgeschlagene BMW-Klangeinrichtung blockiert den unabhängigen PCM-DSP nicht mehr. Textuelle Audio-Manager-Erfolgscodes (`E_OK`) werden korrekt als Erfolg behandelt. Die CarPlay-Audioanbindung bleibt weiterhin ausstehend.
+
 
 Im Tab **DSP** sind alle sieben eigenen Filter ohne BMW-Regler-Zuordnung einstellbar:
 

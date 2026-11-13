@@ -7,7 +7,7 @@
  *
  * The look: a dark background with a soft glow of the accent colour and a fine dot grid, glass cards, an icon
  * by every reading, a trend line of its last two minutes, glowing bars and arcs with a mark where a reading
- * turns too hot, a round-light shift light and an animated xDrive car. Everything sits in the middle (BOX):
+ * turns too hot and a round-light shift light. Everything sits in the middle (BOX):
  * the stock dials' edges and their own figures overlap the map area's sides.
  * o: { look ('native' | 'modern'), pages, style, accent, size ('normal' | 'large'), units, warn,
  *      shift: { on, from, at }, badge, custom, warmTarget, redline }.
@@ -190,33 +190,11 @@ const PAGES = {
                 text(g + '.h4', g, BODY.x + BODY.w - 222, BODY.y + 40, 200, 14, 'HARD DRIVING', plain('text'), { align: 1, tracking: 0.12 })];
         },
     },
-    xdrive: {
-        title: 'XDRIVE', needs: ['splitRear'],
-        build: (o, g) => {
-            const pct = (k) => (d) => (isNum(d[k]) ? Math.round(d[k]) + '%' : '--');
-            const share = (k) => (d) => (isNum(d[k]) ? d[k] / 100 : 0);
-            const R = { x: BODY.x + 360, w: BODY.w - 360 };
-            return [
-                { key: g + '.car', group: g, kind: 'car', x: BODY.x + 20, y: BODY.y, w: 320, h: BODY.h, value: share('splitRear'), max: 1, sweep: false,
-                    dyn: (d) => ({ u_valid: [isNum(d.splitRear) ? 1 : 0] }), colors: (t) => ({ body: t.body, edge: mix(t.edge, '#ffffff', 0.15), accent: t.accent, wheel: t.wheel }) },
-                card(g + '.c', g, R.x, BODY.y, R.w, BODY.h),
-                label(g + '.fl', g, R.x + 20, BODY.y + 18, 120, 'FRONT'),
-                text(g + '.f', g, R.x + 20, BODY.y + 40, 200, 58, (d) => (!isNum(d.splitFront) && isNum(d.splitFrontNm) ? d.splitFrontNm + ' Nm' : pct('splitFront')(d)), glowing('text', 0.35), { align: 0 }),
-                label(g + '.rl', g, R.x + R.w - 140, BODY.y + 18, 120, 'REAR', { align: 1 }),
-                text(g + '.r', g, R.x + R.w - 180, BODY.y + 40, 160, 58, (d) => (!isNum(d.splitRear) && isNum(d.splitFrontNm) ? 'ON' : pct('splitRear')(d)), glowing('text', 0.35), { align: 1 }),
-                // one bar: the front's share from the left, the rear's from the right
-                bar(g + '.fb', g, R.x + 14, BODY.y + 112, (R.w - 28) / 2, 18, share('splitFront'), barColours('accent'), { fromRight: true }),
-                bar(g + '.rb', g, R.x + 14 + (R.w - 28) / 2, BODY.y + 112, (R.w - 28) / 2, 18, share('splitRear'), barColours('accent')),
-                label(g + '.tl', g, R.x + 20, BODY.y + 150, 300, 'REAR SHARE, LAST 2 MIN'),
-                spark(g + '.sp', g, R.x + 12, BODY.y + 170, R.w - 24, 110, (d) => (isNum(d.splitRear) ? d.splitRear / 100 : null), 'accent'),
-                text(g + '.src', g, R.x + 20, BODY.y + BODY.h - 28, R.w - 40, 13, (d) => (d.splitFrom === 'car' ? 'FROM THE CAR' : d.splitFrom ? 'FROM THE TRANSFER CASE' : 'NO SPLIT DATA YET'), plain('dim'), { align: 0, tracking: 0.12 }),
-            ];
-        },
-    },
     edrive: {
         title: 'EDRIVE', needs: [],
         build: (o, g) => {
             const kw = (d) => (isNum(d.kw) ? d.kw : 0);
+            const kwOut = (d) => (isNum(d.kwOut) && d.kwOut >= 20 ? d.kwOut : 100), kwIn = (d) => (isNum(d.kwIn) && d.kwIn >= 5 ? d.kwIn : 35);
             const L = { x: BODY.x, y: BODY.y, w: 300, h: BODY.h }, M = { x: BODY.x + 312, w: 424 };
             const R = 108, cy = 150;
             const pd = (k, lbl, ic, y) => [icon(g + '.' + k + 'I', g, M.x + 220, y - 2, 20, ic, 'dim'), label(g + '.' + k + 'L', g, M.x + 246, y - 4, 100, lbl),
@@ -233,11 +211,12 @@ const PAGES = {
                 icon(g + '.kwI', g, M.x + 14, BODY.y + 13, 20, 7, (t, d) => (kw(d) < -0.3 ? t.regen : t.ev)), label(g + '.kwL', g, M.x + 42, BODY.y + 17, 200, 'BATTERY POWER'),
                 text(g + '.kw', g, M.x + 16, BODY.y + 40, 200, 50, (d) => view('kw', d, o.units).text, (t, d) => ({ color: [kw(d) < -0.3 ? t.regen : t.text, 1], glow: [kw(d) < -0.3 ? t.regen : t.ev, 0.35] }), { align: 0 }),
                 text(g + '.kwU', g, M.x + M.w - 76, BODY.y + 17, 60, 14, 'kW', plain('dim'), { align: 1, tracking: 0.14 }),
-                // either side of zero: charging fills left, drawing fills right
-                bar(g + '.regen', g, M.x + 12, BODY.y + 104, (M.w - 24) / 2, 18, (d) => Math.min(1, Math.max(0, -kw(d)) / 60), barColours('regen'), { fromRight: true }),
-                bar(g + '.draw', g, M.x + 12 + (M.w - 24) / 2, BODY.y + 104, (M.w - 24) / 2, 18, (d) => Math.min(1, Math.max(0, kw(d)) / 100), barColours('ev')),
+                // either side of zero, as the layouts' power gauges: charging fills the left quarter, drawing the rest,
+                // each to the battery's limit (eDrive Live's: kwIn, kwOut; else 35 and 100 kW)
+                bar(g + '.regen', g, M.x + 12, BODY.y + 104, (M.w - 24) / 4, 18, (d) => Math.min(1, Math.max(0, -kw(d)) / kwIn(d)), barColours('regen'), { fromRight: true }),
+                bar(g + '.draw', g, M.x + 12 + (M.w - 24) / 4, BODY.y + 104, (M.w - 24) * 3 / 4, 18, (d) => Math.min(1, Math.max(0, kw(d)) / kwOut(d)), barColours('ev')),
                 label(g + '.chg', g, M.x + 18, BODY.y + 130, 150, 'CHARGING'), label(g + '.drw', g, M.x + M.w - 168, BODY.y + 130, 150, 'DRAWING', { align: 1 }),
-                spark(g + '.kwS', g, M.x + 10, BODY.y + 150, M.w - 20, 40, (d) => (isNum(d.kw) ? Math.max(0, Math.min(1, (d.kw + 60) / 160)) : null), 'ev'),
+                spark(g + '.kwS', g, M.x + 10, BODY.y + 150, M.w - 20, 40, (d) => (isNum(d.kw) ? (d.kw >= 0 ? 0.25 + 0.75 * Math.min(1, d.kw / kwOut(d)) : 0.25 * (1 - Math.min(1, -d.kw / kwIn(d)))) : null), 'ev'),
                 card(g + '.pdC', g, M.x, BODY.y + 208, M.w, BODY.h - 208),
                 icon(g + '.frI', g, M.x + 14, BODY.y + 221, 20, 4, 'accent'), label(g + '.frL', g, M.x + 42, BODY.y + 225, 160, 'FUEL RANGE'),
                 text(g + '.fr', g, M.x + 16, BODY.y + 250, 190, 40, (d) => view('frange', d, o.units).text + ' ' + view('frange', d, o.units).unit, glowing('text', 0.2), { align: 0 }),

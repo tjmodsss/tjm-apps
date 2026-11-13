@@ -48,10 +48,10 @@ module.exports = {
         const centre = o.centre || 'info';
         const gearC = (t, d) => ({ color: [C.gearText(d) === 'R' ? t.red : t.white, 1], glow: [C.gearText(d) === 'R' ? t.white : t.red, 0.6] });
         const powerTxt = (t, d) => (engine ? txt(t) : { color: [C.isNum(d.kw) && d.kw < -0.3 ? '#3ddc84' : t.ev, 1], glow: [t.ev, 0.2] });
-        // right of the KOMBI's gear bracket: the power (or torque), the xDrive split
+        // right of the KOMBI's gear bracket: the power (or torque), the gearbox oil
         const rightColumn = (y0) => [
             ...C.reading('power', 1676, y0, 214, 46, C.focus.power(o), C.focus.powerLabel(o, true), powerTxt, lbl),
-            ...C.reading('split', 1676, y0 + 92, 214, 32, C.splitText, 'XDRIVE', txt, lbl),
+            ...C.reading('gbox', 1676, y0 + 92, 214, 32, (d) => C.tempText(o, d.gearbox), 'GEARBOX', txt, lbl),
         ];
 
         if (centre === 'map') {
@@ -106,19 +106,23 @@ module.exports = {
                 C.text('speedUnit', 690, 452, 540, 28, C.speedUnit(o), lbl, { tracking: 0.12 }),
                 C.text('banner', 1230, 150, 470, 40, 'FREEDOM', goldTxt, { align: 1, tracking: 0.3 }),
                 C.text('mode', 1230, 196, 470, 24, C.modeText, txt, { align: 1, tracking: 0.2 }),
-                C.text('gear', 150, 190, 300, 160, C.gearText, gearC),
+                // (over the car's own strip, which shows the gear and the drive mode: the battery's power, large,
+                // in the gear's place)
+                ...(C.strip(o) ? [C.text('powerBig', 120, 206, 360, 110, C.focus.power(o), powerTxt),
+                    C.text('powerBigLbl', 120, 320, 360, 22, C.focus.powerLabel(o, true), lbl, { tracking: 0.14 })]
+                    : [C.text('gear', 150, 190, 300, 160, C.gearText, gearC)]),
                 C.text('clock', 150, 364, 140, 36, C.clock, txt, { align: 0 }),
                 C.text('outside', 300, 364, 150, 36, (d) => C.outsideText(o, d.outside), txt, { align: 1 }),
                 C.strip(o) ? plaque('plaque', 380, 480, 1160, 140) : plaque('plaque', 110, 486, 1280, 150),
             ],
             // the car's own bottom strip shows the ranges (its fuel and charge gauges sit above them in the
             // corners): the plaque centred under the tach with the temperatures and the charge, the power
-            // and xDrive higher on the right, across from the gear
+            // and the gearbox oil higher on the right, across from the gear
             C.strip(o) ? [].concat(
                 C.reading('oil', 420, 500, 340, 50, (d) => C.tempText(o, d.oil), 'OIL', txt, lbl),
                 C.reading('coolant', 790, 500, 340, 50, (d) => C.tempText(o, d.coolant), 'COOLANT', txt, lbl),
                 C.reading('soc', 1160, 500, 340, 50, C.focus.charge(o), C.focus.chargeLabel(o), txt, lbl),
-                rightColumn(290)) : [].concat(
+                C.reading('gbox', 1676, 290, 214, 40, (d) => C.tempText(o, d.gearbox), 'GEARBOX', txt, lbl)) : [].concat(
             C.reading('oil', 140, 508, 220, 50, (d) => C.tempText(o, d.oil), 'OIL', txt, lbl),
             C.reading('coolant', 390, 508, 220, 50, (d) => C.tempText(o, d.coolant), 'COOLANT', txt, lbl),
             C.reading('fuel', 640, 508, 230, 50, (d) => C.distText(o, d.frange), 'FUEL RANGE', txt, lbl),

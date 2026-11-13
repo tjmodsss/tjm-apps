@@ -17,7 +17,7 @@ const mgu = require('./kit/mgu');
 const C = require('./items');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.3';
 const W = 1600, H = 520;
 const ROWS = 7;
 const KOMBI = 'de.bmw.infotainment.KombiIF';

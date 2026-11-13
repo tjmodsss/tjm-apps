@@ -1,8 +1,8 @@
 {
   "id": "equalizer",
   "title": "TJM Equalizer",
-  "description": "Sieben echte parametrische PCM-DSP-Filter, Profile und vorhandene BMW-Klangregler",
-  "version": "0.2.0",
+  "description": "Experimental seven-band audio equalizer with adjustable filters and saved presets.",
+  "version": "0.2.2",
   "vendor": "TJM",
   "loggingId": "OB1C",
   "iconGlyph": "EQ",
@@ -71,6 +71,10 @@
         [
           "BTN_REFRESH",
           "Werte lesen"
+        ],
+        [
+          "BTN_MUSIC",
+          "Testmusik"
         ],
         [
           "BTN_SETTINGS",

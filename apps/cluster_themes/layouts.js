@@ -72,7 +72,15 @@ class Layouts {
         // Warn (never refuse) about widgets the driver cannot see: under the hood, under BMW's
         // gear box or belt light on the cluster, outside the windshield window on the HUD.
         const target = this.size[0] === 1920 ? 'panel' : 'hud';
-        visible.check(raw.widgets, target).forEach((w) => this.log.warn('layout "' + name + '": ' + w));
+        // once per warning per run: layouts are loaded again and again (previews, the page), and repeating the same
+        // lines rotated the app's log away in seconds on the car (Nov 10 2026)
+        if (!this._warned) this._warned = new Set();
+        visible.check(raw.widgets, target).forEach((w) => {
+            const line = 'layout "' + name + '": ' + w;
+            if (this._warned.has(line)) return;
+            this._warned.add(line);
+            this.log.warn(line);
+        });
         return raw;
     }
 

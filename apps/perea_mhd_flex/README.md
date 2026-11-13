@@ -14,9 +14,10 @@ only reads; nothing is written to the car.
 
 ![Flex Fuel](../../docs/screens/perea_mhd_flex.png)
 
-> **Experimental.** The addresses were captured on one car (G-series MG1, MHD 5.41, PRGID
-> `00005D55503C05`). On any other ROM the app says *ROM not supported* and sends no read: see
-> [Your ROM](#your-rom) to add it.
+> **Experimental.** The addresses were captured on one car (G-series MG1 B58 gen2, MHD 5.41, PRGID
+> `00005D55503C05`) and are applied to every software version of that program family (`5D55`; `50480C`
+> was seen on another car). On a DME of another family the app says *ROM not supported* and sends no
+> read: see [Your ROM](#your-rom) to add it.
 
 ## What leaves the head unit
 
@@ -56,6 +57,7 @@ finest one that answers on your car (**Fuel source** in Settings):
 | **DME tank halves** | `22 59 49` and `22 59 4A` to the DME, between the MHD reads | **0.5 L** each, added | the raw sensors (the cluster filters them); the dial shows the median of the last three reads of each half |
 | **Cluster (Kombi)** | the SOME/IP field, read again every 10 s | 1 L | what the driver sees; `255` and up means no data |
 | DME whole tank | `22 58 3B` | 1 L | shown on the sources line only |
+| DME alcohol | `22 55 0D` | 100/255 % | the alcohol percentage the DME itself believes the fuel has (any ROM); on the sources line, and on the Active dial with *Active ethanol source* = *DME alcohol (550D)*, to check against MHD's own app |
 
 **Auto** (the default) takes the DME's halves when they answer, else the cluster. (1.2.0 also read the
 OBD fuel level, `01 2F`: on the car it follows the range rather than the fuel, so it was dropped.) A
@@ -66,7 +68,7 @@ that does not answer three times in a row, is left alone for five minutes. A rea
 interface is `_optional` in `app.json`: a unit without it installs the app without that source.
 
 Turn on **Show fuel sources** to see them all along the bottom of the screen, `Kombi 24 L (L 12
-R 12) · DME 12.0 + 12.5 = 24.5 L (583B 24 L)` (the cluster's two halves
+R 12) · DME 12.0 + 12.5 = 24.5 L (583B 24 L) · DME alcohol 12.5 %` (the cluster's two halves
 as sent, their scale unknown), and compare them with the gauge in the cluster; the log has the
 raw bytes of every source once a minute (`fuel dmeL=...`) and the cluster's raw values
 (`fluidLevelFuelTank raw=...`). `7F 22 31` in the log means the DME has no such identifier.
@@ -98,6 +100,7 @@ ethanol as two amounts (`calc.js` is laid out for a second output).
 | **Tank capacity** | 40..100 L | 60 L | the fuel dial's scale and the overflow warning |
 | **Fuel source** | Auto, DME tank halves, Cluster (Kombi) | Auto | where the fuel in the tank comes from (above) |
 | **Show fuel sources** | on / off | off | the comparison line along the bottom |
+| **Active ethanol source** | Auto, MHD address (5D55), DME alcohol (550D) | Auto | Auto: MHD's byte at the profile's address while the DME's program family has a profile, else the DME's own alcohol percentage (the dial then says *(DME)*); the other two force one. MISMATCH compares it with CAN as usual |
 
 The values are lists, so only those can be chosen (in the kit's Settings sheet and in the HMI's
 own settings screen alike). The −5 / +5 buttons are drawn only where the kit runs the screen (the
@@ -129,12 +132,20 @@ Code: `protocol.js` (bytes in and out, pure), `poller.js` (the states, one reque
 ## Your ROM
 
 The two addresses are RAM locations in MHD's part of the DME software, so they move with the
-ROM. `PROFILES` in `protocol.js` lists the ROMs they are known for:
+program. `PROFILES` in `protocol.js` lists the program families they are known for; a family is the
+two id bytes of the SVK program entry (`08 00 00 5D 55 ..` is `5D55`, the B58 gen2 MG1) and the
+profile applies to every software version of it (`prgid` / `calid` are the ROM it was captured on):
 
 ```js
-{ name: 'MHD on MG1 (PRGID 00005D55503C05)', prgid: '00005D55503C05', calid: '00008417503C1D',
-  sgbd: '0F26B4', active: 'B00060C2', can: 'B00060D2' }
+{ name: 'MHD on MG1 B58 gen2 (program family 5D55)', family: '5D55',
+  prgid: '00005D55503C05', calid: '00008417503C1D', sgbd: '0F26B4', active: 'B00060C2', can: 'B00060D2' }
 ```
+
+Without a profile the detail line under *ROM not supported* shows the ids seen and, when the DME answers
+`22 55 0D`, its own alcohol percentage (`DME alcohol 12.5 %`); in *Auto* the Active dial then shows that
+percentage (CAN stays empty: it only comes from MHD's address). Whether it follows MHD's *Active* is
+something to check on a car with a profile, against MHD's own app, with *Active ethanol source* forced to
+*DME alcohol (550D)*.
 
 To add yours:
 
@@ -177,10 +188,15 @@ shows on the dark themes). It needs Pillow (`pip install pillow`).
 node kit/tools/test_mhd_flex.js                 # protocol, poller states, filters, calculator, screen, main (no car, no SDK)
 python3 kit/tools/build.py --preview-only perea_mhd_flex
 node kit/tools/preview.js dist/perea_mhd_flex out/    # frames as PNG (demo data)
-node kit/tools/emu.js perea_mhd_flex            # the app in the browser (demo data: nothing answers UDS there)
+node kit/tools/emu.js perea_mhd_flex            # the app in the browser (demo data: nothing answers UDS there); --hmi id8 for iDrive 8
 ```
 
 ## Install
+
+iDrive 7 and iDrive 8 (the repository's README has the differences). On iDrive 8 the app is drawn
+by the Store's renderer only, is operated by touch, Settings is the header's tab, and the page sits
+centred on a backdrop that fills the wider screen; **Show diagnostics** in Settings (there only)
+draws what the kit found on the head unit in the left margin.
 
 The app needs a renderer on the head unit (`needs: ["renderer"]` in `mgu-repo.json`): the
 [MGU Store](https://github.com/robertnisipeanu/mgu-store)'s own Renderer, or `idrive7-renderd`
@@ -215,7 +231,7 @@ python3 kit/tools/build.py perea_mhd_flex
 ```
 
 ```sh
-node mgu-store/deploy/mgu-install.js usb-repo /media/<your-stick> dist/perea_mhd_flex@1.2.1.tgz
+node mgu-store/deploy/mgu-install.js usb-repo /media/<your-stick> dist/perea_mhd_flex@1.6.0.tgz
 ```
 
 The package lands in `<stick>/mgu-repo/local/` with a generated catalog; install it from the

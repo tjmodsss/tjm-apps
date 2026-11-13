@@ -2,12 +2,15 @@
   "id": "cluster_layouts",
   "title": "TJM Cluster Layouts",
   "description": "Your own layout on the whole instrument cluster (round dials, gear, temperatures), drawn by the cluster itself",
-  "version": "0.17.1",
+  "version": "0.28.1",
   "startType": "autostart",
   "vendor": "TJM",
   "loggingId": "OB24",
   "iconGlyph": "gauge",
   "signals": {
+    "de.bmw.infrastructure.VehicleCondition": {
+      "VehicleCondition": "s"
+    },
     "de.bmw.infotainment.vehicle.CDS": {
       "statusEngineSpeed2": "rs",
       "statusEngineTemperature": "rs",
@@ -26,10 +29,11 @@
       "statusSwitchDriveDynamicSport2": "rs",
       "statusVehicleDynamicEngine": "rs",
       "statusActualValueTorque2": "rs",
-      "statusFESVehicleDynamicSwitchHMI": "rs"
+      "statusFESVehicleDynamicSwitchHMI": "rs",
+      "displaySportPowertrain": "s"
     },
     "de.bmw.infrastructure.analytics.BasicDataSet": {
-      "_optional": "gearbox oil temperature; the xDrive split then comes from the transfer case or the drive mode",
+      "_optional": "gearbox oil temperature",
       "basicDataSet": "s"
     },
     "de.bmw.infrastructure.EnvironmentalInformation": {
@@ -56,7 +60,8 @@
     },
     "de.bmw.infotainment.drivingexcitement.Efficiencytainment2": {
       "_optional": "the battery's temperature (eDrive Live's is used instead)",
-      "statusBatteryTemperature": "rs"
+      "statusBatteryTemperature": "rs",
+      "statusPowerRelativHybrid": "rs"
     },
     "de.bmw.infotainment.KombiIF": {
       "_optional": "the car's power distribution figures, and its fuel and electric ranges",
@@ -67,6 +72,47 @@
     "de.bmw.chassis.SteeringAngle": {
       "_optional": "the steering angle (the Steering page)",
       "ActualSteeringAngleDriver": "s"
+    },
+    "de.bmw.dass.AssistedDrivingViewFunctionInput": {
+      "_broadcasts": [
+        "assistedDrivingViewFunctionInputIbVip"
+      ],
+      "_optional": "Modern wide's road: the cruise control's state, set speed and gap"
+    },
+    "de.bmw.dass.pad.communication.AssistedDrivingViewLateralFunctionInput": {
+      "_broadcasts": [
+        "lateralFunctionInputAssistedDrivingView"
+      ],
+      "_optional": "Modern wide's road: the steering assist holding the lane"
+    },
+    "de.bmw.dass.driverassistanceapplications.AssistedDrivingViewLateralCollisionAvoidance": {
+      "_broadcasts": [
+        "assistedDrivingViewLcaInput"
+      ],
+      "_optional": "Modern wide's road: lane departure and lane change warnings"
+    },
+    "de.bmw.dass.pad.communication.ObjectListSuAAR": {
+      "_broadcasts": [
+        "suAARObjectList"
+      ],
+      "_optional": "Modern wide's road: the cars ahead and beside"
+    },
+    "de.bmw.infotainment.vehicle.TPMS": {
+      "statusTyrePressure": "rs",
+      "statusTyreTemperature": "rs",
+      "_optional": "the tyres' pressures and temperatures (GT3)"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle": {
+      "statusNewCurrentUnitsStatusExt": "rs",
+      "_optional": "the car's pressure unit, for the tyre pressures"
+    },
+    "de.bmw.infotainment.resetlogic.ResetLogic": {
+      "_optional": "the consumption now (a candidate for the fast kW)",
+      "currentConsumption": "rs"
+    },
+    "de.bmw.infotainment.displaydataserver.DisplayDataServer": {
+      "_optional": "the cruise control's set speed",
+      "functionalLibraryData": "rs"
     }
   },
   "screens": [
@@ -145,18 +191,18 @@
       ]
     },
     {
-      "key": "batteryReads",
-      "label": "Battery readings (plug-in hybrid)",
+      "key": "kwFast",
+      "label": "Battery power (kW)",
       "type": "choice",
-      "default": "auto",
+      "default": "on",
       "options": [
         [
-          "auto",
-          "Read the battery unit (charge, power) when the car has one"
+          "on",
+          "Fast: between eDrive Live's readings from the car's speed and acceleration"
         ],
         [
           "off",
-          "Off: from eDrive Live or the car only"
+          "eDrive Live's readings only"
         ]
       ]
     },
@@ -213,6 +259,22 @@
         [
           "pulse",
           "Pulse"
+        ],
+        [
+          "gt3",
+          "GT3"
+        ],
+        [
+          "m",
+          "M"
+        ],
+        [
+          "sport",
+          "Sport"
+        ],
+        [
+          "classic",
+          "Classic M"
         ]
       ]
     },
@@ -332,11 +394,7 @@
         ],
         [
           "map",
-          "Waze (Waze on cluster, or the stock map)"
-        ],
-        [
-          "pages",
-          "Cluster Centre's pages (the Cluster Centre app, Show on)"
+          "Waze (Waze on cluster drawn over the layout, else the stock map)"
         ],
         [
           "stock",
@@ -373,6 +431,22 @@
         [
           "c",
           "Celsius"
+        ]
+      ]
+    },
+    {
+      "key": "torqueUnit",
+      "label": "Torque unit",
+      "type": "choice",
+      "default": "nm",
+      "options": [
+        [
+          "nm",
+          "Nm"
+        ],
+        [
+          "kgm",
+          "kgm"
         ]
       ]
     },
@@ -490,6 +564,10 @@
         [
           "eet",
           "Eastern Europe"
+        ],
+        [
+          "utc+9",
+          "Korea / Japan (UTC+9)"
         ]
       ]
     },
@@ -585,11 +663,6 @@
         "invalid": 65535,
         "note": "degrees + 40, in the car's temperature unit (deg F on a car set to Fahrenheit: main.js converts it): a G05 PHEV sent raw 53-57 on a ~10 deg C day (2.8.0 log), not deci-Kelvin. Values outside -40..150 deg C are shown as no data; the raw values go to the log ('raw tyre temperature')"
       },
-      "torqueSplitRear": {
-        "factor": 0.01,
-        "offset": 0,
-        "invalid": 65535
-      },
       "tyrePress": {
         "factor": 0.1,
         "offset": 0,
@@ -621,33 +694,6 @@
         "invalid": 32767,
         "note": "degrees at the wheel, negative to the right as BMW counts; the CAN steering-angle factor, signed 16 bit, not yet confirmed on this field: raw values on the Signals page and in the log"
       }
-    },
-    "xdrive": {
-      "comment": "xDrive split straight from the transfer case unit (LMV, address 0x19), read on the Chassis page when the car's own split signal has nothing. LMV_MOMENT (22 DB32): actual torque to the front axle, signed, Nm = raw / 4 (bytes 0-1); qualifier bytes 2-3, target torque 4-5 (layout from BMW's LMV_G11 description). Split % = front torque / (engine torque x gear ratio): an estimate (no converter multiplication, no losses).",
-      "front": [
-        {
-          "ecu": 25,
-          "did": "DB32",
-          "bytes": 2,
-          "at": 0,
-          "factor": 0.25,
-          "signed": true,
-          "min": -200,
-          "max": 2500,
-          "note": "LMV_MOMENT.ISTMOMENT, actual torque to the front axle"
-        }
-      ],
-      "gearRatios": [
-        5.0,
-        3.2,
-        2.143,
-        1.72,
-        1.313,
-        1.0,
-        0.823,
-        0.64
-      ],
-      "gearRatiosNote": "ZF 8HP, 1st..8th"
     },
     "dme": {
       "comment": "Intake / fuel values from the engine unit (DME, ecu 18 = 0x12) with UDS 0x22. F4xx = the standard OBD PIDs (F40F = PID 0x0F); a candidate with \"obd\" instead of \"did\" asks for the same PID with OBD service 01 (some engine units refuse the F4xx identifiers with NRC 31). Candidates are tried in order; the first plausible one wins. value = raw * factor + offset (bar / deg C). If a tile says 'not available from this DME', add your engine's BMW-specific DID here. boost: tried in order when the sport display sends no boost (setting 'Boost from'); absolute pressure in kPa, the outside air pressure (baro) is subtracted. boostTarget / boostActual: boost pressure setpoint and actual (absolute kPa, baro subtracted), BMW DIDs first, then OBD PID 0x70; the tile only shows when the target answers. loadTarget / loadActual: requested and actual relative air charge in %. timing: OBD PID 0x0E, degrees before top dead centre. misfire: OBD service 06 monitor results (MID A2 = cylinder 1, A3 = cylinder 2 ...), tid 0C = misfires this driving cycle (0B = average of the last 10 cycles); engine units that only speak UDS are asked 0x22 F6A2... egs: gearbox temperature from the gearbox unit (EGS); give each candidate its \"ecu\".",
@@ -981,46 +1027,10 @@
         }
       ]
     },
-    "comment": "scaling, xdrive and dme as M Vitals (cauliflowermossgrape/idrive7-apps apps/car_vitals) reads them",
-    "battery": {
-      "comment": "the high-voltage battery unit (SME, ecu 7), as eDrive Live reads it (confirmed on the X5 45e): power = voltage x current x powerSign / 1000 (kW, + drawing)",
-      "powerSign": -1,
-      "hvV": [
-        {
-          "ecu": 7,
-          "did": "DDB4",
-          "bytes": 2,
-          "at": 0,
-          "factor": 0.01,
-          "min": 150,
-          "max": 500,
-          "timeoutMs": 600
-        }
-      ],
-      "hvI": [
-        {
-          "ecu": 7,
-          "did": "DD69",
-          "bytes": 4,
-          "at": 0,
-          "factor": 0.01,
-          "signed": true,
-          "min": -800,
-          "max": 800,
-          "timeoutMs": 600
-        }
-      ],
-      "soc": [
-        {
-          "ecu": 7,
-          "did": "DDBC",
-          "bytes": 2,
-          "at": 0,
-          "factor": 0.1,
-          "min": 0,
-          "max": 100
-        }
-      ]
+    "comment": "scaling and dme as M Vitals (cauliflowermossgrape/idrive7-apps apps/car_vitals) reads them",
+    "dap": {
+      "posScale": 0.01,
+      "note": "Modern wide's road (dap.js): metres a unit of an object's x and y in ObjectListSuAAR (not yet seen on a car: check 'dap raw objects' in the log against a car followed at a known distance)"
     }
   },
   "requires": {

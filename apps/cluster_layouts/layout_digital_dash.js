@@ -8,7 +8,7 @@
  *   right:   the gear, large; the battery's charge with the electric and fuel ranges
  *   middle:  six tiles - oil, coolant, gearbox oil, intake air, the battery's temperature, boost - each with an
  *            icon, its value, a trend line of the last two minutes and a bar that turns red where it is too hot
- *   bottom:  the time, outside, the xDrive split, the engine on or off
+ *   bottom:  the time, outside, the gearbox oil, the engine on or off
  *
  * With the map in the centre the tiles give way to it: oil, coolant, gearbox and battery temperature move to
  * a strip under the map. With the centre left to the stock cluster, nothing goes between x 820 and 1100.
@@ -141,14 +141,15 @@ const pct = (v) => (isNum(v) ? Math.round(v) + '%' : '--');
 
 module.exports = {
     id: 'digital_dash',
+    stripGear: true,   // (the gear in the right column: kept over the car's own strip too)
     title: 'Digital dash',
     palette: (lookId) => PALETTES[lookId] || PALETTES.comfort,
     gearText: C.gearText,
     /* the engine unit's readings it shows: read fast while it is up */
-    needs: ['iat', 'boostActual', 'gearbox', 'splitRear'],   // (and C.focus.needs with Show: Engine)
+    needs: ['iat', 'boostActual', 'gearbox'],   // (and C.focus.needs with Show: Engine)
 
     pieces(o) {
-        const r = C.rpmScale(o), s = C.speedScale(o);
+        const r = C.rpmScale(o);
         const centre = o.centre || 'info', map = centre === 'map', stock = centre === 'stock';
         const engine = C.engineFocus(o);   // Show: Engine (the eDrive readings traded for the engine's)
         const gearC = (t, d) => ({ color: [C.gearText(d) === 'R' ? '#ff453a' : t.text, 1], glow: [t.glow, 0.2] });
@@ -167,14 +168,16 @@ module.exports = {
         const rpmBar = (x, y, w) => bar('rpmBar', x, y, w, 26, (d) => (isNum(d.rpm) ? Math.min(1, d.rpm / 1000 / r.max) : 0), fillC, { segments: Math.round(w / 26), mark: () => r.red / r.max });
         if (map) list.push(rpmBar(60, 540, 340), C.text('rpmTxt', 60, 572, 300, 24, rpmTxt, lbl, { align: 0, tracking: 0.1 }), modeT('mode', 1505, 140, 260, 22, 0.06));
         else if (stock) list.push(rpmBar(200, 138, 600), C.text('rpmTxt', 200, 170, 320, 24, rpmTxt, lbl, { align: 0, tracking: 0.1 }), modeT('mode', 1220, 170, 500));
-        else list.push(rpmBar(200, 138, 1520), C.text('rpmTxt', 200, 170, 320, 24, rpmTxt, lbl, { align: 0, tracking: 0.1 }), modeT('mode', 1220, 170, 500));
+        else list.push(rpmBar(200, 138, 1520), C.text('rpmTxt', 200, 170, 320, 24, rpmTxt, lbl, { align: 0, tracking: 0.1 }));
+        // (the drive mode: the car's own strip shows it under a layout with the strip; else on the right)
+        if (!map && !stock && !C.strip(o)) list.push(modeT('mode', 1220, 170, 500));
 
         /* left: speed and battery power */
         list.push(
             C.text('speedDigits', 50, 196, 360, 170, (d) => C.speedText(o, d), big, { chars: 4 }),
             C.text('speedUnit', 60, 368, 340, 24, C.speedUnit(o), lbl, { tracking: 0.2 }),
             label('kwL', 70, 424, 320, C.focus.powerLabel(o, true)),
-            C.text('kw', 66, 446, 340, 72, engine ? C.torqueText : (d) => (isNum(d.kw) ? (d.kw > 0.05 ? '+' : '') + (Math.abs(d.kw) < 10 ? d.kw.toFixed(1) : Math.round(d.kw)) + ' kW' : '--'),
+            C.text('kw', 66, 446, 340, 72, engine ? C.torqueText(o) : (d) => (isNum(d.kw) ? (d.kw > 0.05 ? '+' : '') + (Math.abs(d.kw) < 10 ? d.kw.toFixed(1) : Math.round(d.kw)) + ' kW' : '--'),
                 engine ? txt : (t, d) => ({ color: [kw(d) < -0.3 ? t.regen : t.text, 1], glow: [kw(d) < -0.3 ? t.regen : t.ev, 0.3] }), { align: 0, chars: 9 }),
             // one bar for both ways: drawing (to 100 kW) in blue, charging and regenerating (to 60 kW) in green
             engine ? bar('power', 70, 526, 320, 12, C.focus.torqueFrac, barC('fill1'))
@@ -185,13 +188,11 @@ module.exports = {
         const RX = 1520, RW = 350;
         const strip = C.strip(o) && !map && !stock;
         if (strip) list.push(
-            // the car's own bottom strip: no dark box, and the strip shows the ranges (its fuel and charge
-            // gauges sit above them): the gear large, the charge, and the xDrive split
-            C.text('gear', 1480, 230, 390, 170, C.gearText, gearC, { align: 0.5, chars: 3 }),
-            label('socL', RX, 424, RW, C.focus.chargeLabel(o), { align: 0.5 }),
-            C.text('soc', RX, 444, RW, 64, engine ? C.timingText : (d) => pct(d.soc), engine ? txt : evTxt, { align: 0.5, chars: 5 }),
-            label('splitL', RX, 524, RW, 'XDRIVE', { align: 0.5 }),
-            C.text('split', RX, 542, RW, 36, C.splitText, txt, { align: 0.5, chars: 12 }),
+            // the car's own bottom strip shows the ranges (its fuel and charge gauges sit above them): the gear
+            // large, the charge and the gearbox oil under it
+            C.text('gear', 1480, 214, 390, 170, C.gearText, gearC, { align: 0.5, chars: 3 }),
+            label('socL', RX, 404, RW, C.focus.chargeLabel(o), { align: 0.5 }),
+            C.text('soc', RX, 424, RW, 64, engine ? C.timingText : (d) => pct(d.soc), engine ? txt : evTxt, { align: 0.5, chars: 5 }),
         );
         else list.push(
             // the gear beside the dark box the KOMBI leaves (left of it) and below its eDrive readout (top right)
@@ -226,14 +227,20 @@ module.exports = {
             ['iat', engine ? 'rail' : 'batt', 'boost'].forEach((id, i) => list.push(...compact(o, id, 1120, 214 + i * 110, 280)));
         }
 
-        /* the bottom of the side columns: time, outside, the xDrive split (clear of the warning lights) */
-        list.push(
+        /* the bottom of the side columns: time, outside, the gearbox oil (clear of the warning lights) */
+        // (over the car's own strip, which shows the time and the outside temperature: the gearbox oil under the
+        // charge instead; the battery's temperature is a tile)
+        if (strip) list.push(
+            label('gboxL', RX, 504, RW, 'GEARBOX OIL', { align: 0.5 }),
+            C.text('gbox', RX, 524, RW, 40, (d) => C.tempText(o, d.gearbox), txt, { align: 0.5, chars: 7 }),
+        );
+        else list.push(
             C.text('clock', 60, map ? 606 : 552, 170, 44, C.clock, txt, { align: 0, chars: 5 }),
             C.text('outside', 240, map ? 606 : 552, 160, 44, (d) => C.outsideText(o, d.outside), txt, { align: 0, chars: 6 }),
         );
         if (!strip) list.push(
-            label('splitL', RX, 634, 100, 'XDRIVE'),
-            C.text('split', RX + 100, 628, RW - 100, 32, C.splitText, txt, { align: 1, chars: 12 }),
+            label('gboxL', RX, 634, 120, 'GEARBOX'),
+            C.text('gbox', RX + 120, 628, RW - 120, 32, (d) => C.tempText(o, d.gearbox), txt, { align: 1, chars: 7 }),
         );
         return list;
     },

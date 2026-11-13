@@ -3,8 +3,7 @@
  * presence.js - which of these apps is on the cluster now, so they don't both draw: a layout covers the whole
  * panel (Cluster Centre's pages under it would be hidden, yet take dozens of the renderer's 96 layers and
  * leave the layout's last pieces refused). Each app touches a file in /dev/shm while it shows; the other
- * checks it. Cluster Layouts also says what its centre holds: { centre: 'pages' } lets Cluster Centre's pages show
- * in the layout's centre window (the map area), which the layout leaves clear.
+ * checks it. (Cluster Layouts also says what its centre holds, for the logs.)
  */
 const fs = require('fs');
 const path = require('path');

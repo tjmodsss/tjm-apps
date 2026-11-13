@@ -34,6 +34,6 @@ it whole (write a temporary file, then rename it over it):
 `{ "text": "...", "label": "..." }`. The car's own oil and coolant temperatures win over a provider's.
 
 While its panel is up, Cluster Info writes `wanted.json` in the same folder: `{ "t": ..., "power": true,
-"values": ["battery", "oil"] }`. Read it to know when to read fast and write (and let the car sleep
-otherwise); eDrive Live does (`apps/edrive2/provider.js` in
+"values": ["battery", "oil"] }` - only while the car is switched on (`kit/awake.js`: told it is off, the panel asks
+nothing). Read it to know when to read fast and write (and let the car sleep otherwise); eDrive Live does (`apps/edrive2/provider.js` in
 [eroobeeroo/idrive7-apps](https://github.com/eroobeeroo/idrive7-apps)).

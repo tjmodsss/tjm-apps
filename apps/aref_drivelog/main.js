@@ -21,7 +21,7 @@ const { Trips, csv } = require('./trip');
 const { DragyCal, READY_N } = require('./dragy');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 const W = 1600, H = 520;
 const SAVE_MS = 30000;
 const ROWS = 7;
@@ -206,6 +206,17 @@ mgu.run({
                     sub: 'top ' + spd(c.topKmh) + '   ' + dur(c.movingMs), sub2: run || ('oil max ' + temp(c.oilMax)),
                     small: [(tr.current ? 'This drive: ' : 'Last drive: ') + dist(c.km), run || 'top ' + spd(c.topKmh)] };
             });
+            // 0.3.2: Car Watch replaces this app. A copy of the data for Car Watch to bring over on its first start
+            // (/dev/shm: memory only, gone at the next head-unit restart, so install Car Watch before that).
+            const handoff = guard('handoff', () => {
+                const dir = '/dev/shm/aref-handoff-' + ctx.spec.id;
+                try { fs.mkdirSync(dir, 0o755); } catch (e) { /* there already */ }
+                ['drivelog.json',  'drives.csv'].forEach((f) => {
+                    try { fs.writeFileSync(path.join(dir, f), fs.readFileSync(path.join(ctx.dataDir, f)), { mode: 0o644 }); fs.chmodSync(path.join(dir, f), 0o644); } catch (e) { /* not written yet */ }
+                });
+            });
+            handoff();
+            setInterval(handoff, 60000);
             log.info('started ' + VERSION + ' (' + tr.trips.length + ' drives, ' + cal.runs.length + ' runs kept)');
         } catch (e) {
             log.error('start: ' + (e && e.stack || e));

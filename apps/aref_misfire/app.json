@@ -1,8 +1,8 @@
 {
   "id": "aref_misfire",
   "title": "TJM Misfire Watch",
-  "description": "Logs every misfire the engine counts, per cylinder, across every drive. It reads the engine unit's own misfire counters every few seconds while the engine runs and records each new misfire with the conditions at that moment: rpm, speed, gear, torque, coolant and drive mode. Shows this drive per cylinder, all-time totals, the DME's 10-drive average, a misfire log and a list of drives, and exports CSV. Finds a weak coil or worn plug early. Read-only. Starts with the car.",
-  "version": "0.1.0",
+  "description": "Replaced by Car Watch (install it, then remove this app). Logs every misfire the engine counts, per cylinder, across every drive. It reads the engine unit's own misfire counters every few seconds while the engine runs and records each new misfire with the conditions at that moment: rpm, speed, gear, torque, coolant and drive mode. Shows this drive per cylinder, all-time totals, the DME's 10-drive average, a misfire log and a list of drives, and exports CSV. Finds a weak coil or worn plug early. Read-only. Starts with the car.",
+  "version": "0.1.1",
   "vendor": "TJM",
   "loggingId": "OB08",
   "mguAppStartType": "autostart",

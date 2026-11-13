@@ -2,7 +2,7 @@
   "id": "osa",
   "title": "TJM Oil Service",
   "description": "Engine, coolant and transmission oil temperature monitoring with live warm-up estimates and locally stored service history",
-  "version": "0.2.22",
+  "version": "0.2.24",
   "settingsBeforeLast": true,
   "vendor": "TJM",
   "loggingId": "OB04",

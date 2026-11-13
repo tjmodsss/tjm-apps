@@ -22,36 +22,35 @@ const READINGS = {
     rpm: { title: 'Engine speed', short: 'RPM', icon: 13, kind: 'rpm', min: 0, max: 7000 },
     speed: { title: 'Speed', short: 'SPEED', icon: 13, kind: 'speed', min: 0, max: 250 },
     torque: { title: 'Engine torque', short: 'TORQUE', icon: 11, kind: 'nm', min: 0, max: 600 },
-    splitRear: { title: 'xDrive: rear share', short: 'REAR', icon: 10, kind: 'pct', min: 0, max: 100 },
-    splitFront: { title: 'xDrive: front share', short: 'FRONT', icon: 10, kind: 'pct', min: 0, max: 100 },
     gLat: { title: 'Lateral g', short: 'LAT G', icon: 8, kind: 'g', min: -1.2, max: 1.2 },
     gLong: { title: 'Longitudinal g', short: 'LONG G', icon: 8, kind: 'g', min: -1.2, max: 1.2 },
     soc: { title: 'Battery charge', short: 'CHARGE', icon: 6, kind: 'pct', min: 0, max: 100, warnLow: 10 },
-    kw: { title: 'Battery power', short: 'POWER', icon: 7, kind: 'kw', min: -60, max: 100 },
+    kw: { title: 'Battery power', short: 'POWER', icon: 7, kind: 'kw', min: -35, max: 100 },
     battTemp: { title: 'Battery temperature', short: 'BATTERY', icon: 6, kind: 'temp', min: 0, max: 50, warnHigh: 42, cold: 5 },
     erange: { title: 'Electric range', short: 'ELECTRIC', icon: 7, kind: 'km', min: 0, max: 60 },
     frange: { title: 'Fuel range', short: 'FUEL RANGE', icon: 4, kind: 'km', min: 0, max: 700, warnLow: 50 },
 };
 
-/** Units now: { temp: 'f' | 'c', press: 'bar' | 'psi' | 'kpa', speed: 'mph' | 'kmh' }. */
+/** Units now: { temp: 'f' | 'c', press: 'bar' | 'psi' | 'kpa', speed: 'mph' | 'kmh', torque: 'lbft' | 'nm' | 'kgm' }. */
 function convert(kind, v, u) {
     if (!isNum(v)) return v;
     if (kind === 'temp') return u.temp === 'f' ? v * 9 / 5 + 32 : v;
     if (kind === 'tempDelta') return u.temp === 'f' ? v * 9 / 5 : v;
     if (kind === 'press') return u.press === 'psi' ? v * 14.5038 : u.press === 'kpa' ? v * 100 : v;
     if (kind === 'speed' || kind === 'km') return u.speed === 'mph' ? v / 1.609344 : v;
-    if (kind === 'nm') return u.torque === 'lbft' ? v * 0.737562 : v;
+    if (kind === 'nm') return u.torque === 'lbft' ? v * 0.737562 : u.torque === 'kgm' ? v / 9.80665 : v;
     return v;
 }
 function unitText(kind, u) {
     return { temp: '°' + (u.temp === 'f' ? 'F' : 'C'), tempDelta: '°' + (u.temp === 'f' ? 'F' : 'C'), press: u.press === 'psi' ? 'PSI' : u.press === 'kpa' ? 'KPA' : 'BAR',
-        speed: u.speed === 'mph' ? 'mph' : 'km/h', km: u.speed === 'mph' ? 'mi' : 'km', rpm: 'rpm', pct: '%', kw: 'kW', nm: u.torque === 'lbft' ? 'lb-ft' : 'Nm', deg: '°', g: 'G' }[kind] || '';
+        speed: u.speed === 'mph' ? 'mph' : 'km/h', km: u.speed === 'mph' ? 'mi' : 'km', rpm: 'rpm', pct: '%', kw: 'kW', nm: u.torque === 'lbft' ? 'lb-ft' : u.torque === 'kgm' ? 'kgm' : 'Nm', deg: '°', g: 'G' }[kind] || '';
 }
 /** Decimals for a kind in a unit. */
 function decimals(kind, v, u) {
     if (kind === 'press') return u.press === 'bar' ? (Math.abs(v) < 10 ? 2 : 0) : u.press === 'psi' && Math.abs(v) < 30 ? 1 : 0;
     if (kind === 'g') return 2;
     if (kind === 'kw' || kind === 'deg') return Math.abs(v) < 10 ? 1 : 0;
+    if (kind === 'nm' && u.torque === 'kgm') return Math.abs(v) < 100 ? 1 : 0;   // kgm: a tenth of Nm's, so a decimal
     return 0;
 }
 

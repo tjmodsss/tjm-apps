@@ -1,8 +1,8 @@
 {
   "id": "aref_drivelog",
   "title": "TJM Drive Log",
-  "description": "Records every drive in the background: distance, time moving, top speed, best 0-60 mph, peak rpm, the most acceleration, braking and cornering g, and the highest oil and coolant temperatures. Compare with Dragy (off by default): enter a Dragy's time after a run, and after 3 runs every 0-60 also shows a Dragy-adjusted time. History, 0-60 runs and Save CSV. Read-only. Starts with the car.",
-  "version": "0.3.1",
+  "description": "Replaced by Car Watch (install it, then remove this app). Records every drive in the background: distance, time moving, top speed, best 0-60 mph, peak rpm, the most acceleration, braking and cornering g, and the highest oil and coolant temperatures. Compare with Dragy (off by default): enter a Dragy's time after a run, and after 3 runs every 0-60 also shows a Dragy-adjusted time. History, 0-60 runs and Save CSV. Read-only. Starts with the car.",
+  "version": "0.3.2",
   "vendor": "TJM",
   "loggingId": "OB07",
   "mguAppStartType": "autostart",

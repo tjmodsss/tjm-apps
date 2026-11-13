@@ -2,7 +2,7 @@
   "id": "dpf",
   "title": "TJM DPF Status",
   "description": "Read-only diesel particulate filter status monitoring",
-  "version": "0.1.6",
+  "version": "0.1.20",
   "vendor": "TJM",
   "loggingId": "OB03",
   "iconGlyph": "temp",
@@ -10,13 +10,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "TJM DPF Status",
-      "buttons": [
-        [
-          "BTN_TEST_DPF",
-          "Test DPF DIDs"
-        ]
-      ]
+      "title": "TJM DPF Status"
     }
   ],
   "signals": {

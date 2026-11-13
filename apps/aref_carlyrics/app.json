@@ -2,7 +2,7 @@
   "id": "aref_carlyrics",
   "title": "TJM Car Lyrics",
   "description": "Synced lyrics for whatever the car plays: Apple Music over CarPlay, Bluetooth or USB, no Spotify needed. A full-screen page drawn like Apple Music's: the album art blurred behind, the cover and a progress line on the left, and the lyrics gliding line by line on the right, timed to the song from the car's own clock. Lyrics from LRCLIB, artwork from Apple's iTunes search. A Probe tab shows what the car reports. Read-only toward the car. Needs internet through the Store's uplink.",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "vendor": "TJM",
   "loggingId": "OB09",
   "internet": true,

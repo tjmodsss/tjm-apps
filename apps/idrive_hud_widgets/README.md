@@ -1,8 +1,12 @@
 # HUD Widgets
 
+<img src="icon.png" width="72" align="left" alt="HUD Widgets icon">
+
 Puts your own readouts on the windshield HUD: gear, a shift bar, boost, oil and coolant temperatures, a clock, or any car sensor you pick. BMW's HUD already shows the speed, so these layouts leave it out. Open **HUD Widgets** from the apps menu on the center screen and set it up on its page.
 
 <p align="center"><img src="../../docs/images/hud-redline.gif" width="600" alt="Redline layout"></p>
+
+<p align="center"><img src="../../docs/images/page-hud-layouts.png" width="900" alt="The HUD Widgets page on the center screen"></p>
 
 ## Layouts
 
@@ -90,11 +94,17 @@ Classic, M and Night, plus Auto, which switches to Night at sunset. You choose w
 
 - **Off (BMW's own HUD):** the first card on the Layouts tab. Tap it and the app draws nothing in any drive mode, so BMW's HUD comes back.
 - **Change with SPORT / COMFORT / ECO PRO** (on by default): the HUD follows the drive mode buttons, with a layout for each mode. Out of the box, Comfort shows Daily, and Sport and Eco Pro hand the HUD back to BMW. In Sport, BMW's own HUD adds its rev band bottom left, next to its speed; every layout leaves that corner empty, so any layout can be used in Sport too. Until the car reports a mode, the plain layout setting is used.
-- **With Cluster Themes:** the HUD and the cluster theme cannot show at the same time, because cluster-render has one screen slot for both. With the defaults, Comfort gets the HUD and Sport gets the cluster theme, so they take turns. Pick a layout while a cluster theme is on and the page asks whether to turn the theme off; yes turns it off until you pick a theme in Cluster Themes again, and it asks the same the other way round.
+- **With Redline:** while Redline holds the HUD, HUD Widgets draws nothing and the status line says so. It comes back by itself when Redline lets go, and Redline hands the HUD back when the car is switched off.
+- **M cars:** the Efficient, Sport and Sport+ modes of M cars are not recognised yet, so the layout doesn't change with them. The last line of the Settings tab shows the value your car sends; please post it in an issue so it can be added.
+- **With Cluster Themes:** on cluster-render 0.5.1 and newer, a HUD layout and a cluster theme show at the same time. On older cluster-render they share one screen slot and take turns: pick a layout while a cluster theme is on and the page asks whether to turn the theme off, and it asks the same the other way round.
 
 ## Settings
 
-Layout, drive mode switching, which sensor each readout shows, where the HUD sits on the glass and its size, theme, daytime theme for Auto, units (mph, °F, psi or km/h, °C, bar), 12- or 24-hour clock, redline, shift point before redline, cold-engine rev guard, which readouts show (clock, oil, coolant, boost), and demo data. Changes show on the HUD right away, and the HUD keeps running after you leave the page.
+Layout, drive mode switching, which sensor each readout shows, where the HUD sits on the glass and its size, theme, daytime theme for Auto, units (mph, °F, psi or km/h, °C, bar), 12- or 24-hour clock, time zone, fuel tank size, redline, shift point before redline, cold-engine rev guard, which readouts show (clock, oil, coolant, boost), and demo data. Changes show on the HUD right away, and the HUD keeps running after you leave the page.
+
+**Time zone (clock):** the head unit's clock runs on UTC, so pick your zone once. Named zones (US Eastern, Central, Mountain, Pacific, Alaska, Hawaii, Arizona, Canada Atlantic, Mexico, UK / Ireland / Portugal, Central Europe, Eastern Europe) change for daylight saving by themselves; for anywhere else, pick your offset from UTC. The Auto theme uses the same zone to work out sunset.
+
+**Fuel:** the fuel readout asks the engine unit for the level in %. Where the engine unit doesn't answer, it works it out from the litres the car reports and the Fuel tank size setting (65 L on an X3, 59 L on a 3 Series). Plug-in hybrids can also show **Hybrid battery**, the high-voltage battery's charge in % (not yet checked on a hybrid).
 
 **G-meter:** the range (0.8, 1.0, 1.2, 1.5 or 2.0 g at the edge; 1.2 by default), the trail (off, 1, 2 or 4 seconds), **Swap left / right** (if the dot goes the wrong way in a turn) and **Brake on top**, the best left, right, accelerating, braking and overall g of the drive with a Reset button, and a live copy of the meter. The g comes from the car's own acceleration sensor: parked on level ground it reads 0.00, and a hill adds a little.
 
@@ -116,15 +126,17 @@ BMW keeps drawing its own HUD content over ours, bottom left: the speed and spee
 
 ## Requirements
 
-[cluster-render](https://github.com/robertnisipeanu/idrive-apps), installed from the `robertnisipeanu/idrive-apps` Store source. Without it, the status row reads "HUD off: cluster-render is not installed or not running".
+[cluster-render](https://github.com/robertnisipeanu/idrive-apps), installed from the `robertnisipeanu/idrive-apps` Store source. Version 0.5.1 or newer lets the HUD show together with a cluster theme. Without it, the status row reads "HUD off: cluster-render is not installed or not running".
 
 ## On the car
 
-Tested on a 2020 X3 M40i. It runs, the rpm is smooth at idle, and the layouts were fitted to the visible window from the grid photo. Still to be checked:
+Tested on a 2020 X3 M40i. It runs, the rpm is smooth at idle, the layouts are fitted to the window BMW's own height-adjust frame shows, and Redline and Warm-up were checked on the glass in Sport, next to BMW's own rev band. Still to be checked:
 
-- the fitted layouts on the glass: nothing cut off on the right, nothing under BMW's speed, sign or Sport rev band;
-- the drive mode switching and the engine computer boost;
-- how the colours and edges look on the real glass, especially the M blues in sunlight;
-- whether the head unit's clock is in local time.
+- the other layouts on the glass: nothing cut off on the right, nothing under BMW's speed or sign;
+- a HUD layout and a cluster theme showing together (0.12.5);
+- the clock with a named time zone, and the fuel % from the engine unit;
+- how the colours look on the real glass, especially the M blues in sunlight.
+
+See [Use at your own risk](../../README.md#use-at-your-own-risk) before installing.
 
 Version history is in the repo's [CHANGELOG.md](../../CHANGELOG.md).

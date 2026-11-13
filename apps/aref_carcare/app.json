@@ -2,7 +2,7 @@
   "id": "aref_carcare",
   "title": "TJM Car Care",
   "description": "Your own service intervals, apart from BMW's: engine oil (3,000 mi by default), spark plugs, coils, diff, transfer case and transmission fluid, brake fluid, air and cabin filters, each with how much is left. Done today records the odometer and the date; Done earlier sets a service from before. It never resets BMW's own service reminders, so a dealer's free service still comes due on BMW's schedule. Read-only toward the car.",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "vendor": "TJM",
   "loggingId": "OB06",
   "startWidget": {

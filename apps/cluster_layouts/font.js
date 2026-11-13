@@ -5,7 +5,7 @@
  * so one small atlas draws a 40 px numeral and a 200 px gear alike. It is the only picture a layout sends
  * to the cluster, once (CELL_W x CELL_H a glyph, 32 to a row: about 200 KB).
  *
- * Baked from Barlow Semi Condensed (SIL OFL 1.1: NOTICE) by tools/bake_font.py into font_<family>.wad and font_baked.js,
+ * Baked from Barlow Semi Condensed (and, for 'wide', Michroma; SIL OFL 1.1: NOTICE) by tools/bake_font.py into font_<family>.wad and font_baked.js,
  * with upper and lower case. Without those files it is made at start from the kit's own font as before (drawn
  * large, then a Euclidean distance transform), upper case only.
  */
@@ -13,11 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const { Canvas } = require('./kit/canvas');
 
-/* the baked atlases (font_bold / font_light), when present */
+/* the baked atlases (font_bold / font_light / font_wide), when present */
 const BAKED = {};
 let bakedMeta = {};
 try { bakedMeta = require('./font_baked'); } catch (e) { /* not baked */ }
-['bold', 'light'].forEach((f) => {
+['bold', 'light', 'wide', 'orb'].forEach((f) => {
     try {
         const meta = bakedMeta[f];
         const px = fs.readFileSync(path.join(__dirname, 'font_' + f + '.wad'));
@@ -33,8 +33,8 @@ const SPREAD = 8;                   // the distance shown, in atlas pixels each 
 const SIZE = CELL_H * 0.98;          // the font size a glyph is drawn at, in atlas pixels
 /* digits and their signs from the kit's numeric face, letters from its bold one (the numeric face has none) */
 /* the kit's faces for digits and signs, and for letters, per family: 'bold' (strong numerals, bold capitals) or
- * 'light' (thin numerals, regular capitals) */
-const FAMILIES = { bold: { digits: 'num', letters: 'bold' }, light: { digits: 'light', letters: 'label' } };
+ * 'light' (thin numerals, regular capitals); 'wide' (Michroma, baked only: without its atlas, the bold faces) */
+const FAMILIES = { bold: { digits: 'num', letters: 'bold' }, light: { digits: 'light', letters: 'label' }, wide: { digits: 'num', letters: 'bold' }, orb: { digits: 'num', letters: 'bold' } };
 const fontOf = (ch, fam) => { const f = FAMILIES[fam] || FAMILIES.bold; return /[0-9\-°.:\/ %+,]/.test(ch) && !(fam === 'light' && /[,]/.test(ch)) ? f.digits : f.letters; };
 
 /** Squared distance transform of one line (Felzenszwalb & Huttenlocher). f: 0 on a feature, big off it. */
@@ -89,7 +89,7 @@ function cell(ch, fam) {
 }
 
 const built = {};
-/** The atlas of a family ('bold' default, 'light'): { w, h, px (Buffer, one byte a pixel), cells, cols, rows, aspect, code(ch), adv }. */
+/** The atlas of a family ('bold' default, 'light', 'wide'): { w, h, px (Buffer, one byte a pixel), cells, cols, rows, aspect, code(ch), adv }. */
 function atlas(fam) {
     fam = FAMILIES[fam] ? fam : 'bold';
     if (built[fam]) return built[fam];
@@ -97,7 +97,7 @@ function atlas(fam) {
     if (b) {
         const m = b.meta;
         built[fam] = { w: m.cellW * m.cols, h: m.cellH * m.rows, px: b.px, cells: m.chars.length, cols: m.cols, rows: m.rows,
-            aspect: m.cellW / m.cellH, code: codeOf, adv: m.adv, fam, baked: m.font };
+            aspect: m.cellW / m.cellH, code: m.chars === CHARS ? codeOf : codeIn(m.chars), adv: m.adv, fam, baked: m.font };
         return built[fam];
     }
     // COLS cells a row (a texture is at most 2048 wide), as many rows as needed
@@ -123,7 +123,7 @@ function line(s, boxW, align, tracking, fam) {
     const a = atlas(fam), chars = Array.from(String(s)).slice(0, 32);
     // a space at least a third of a glyph height: the unit's fonts report next to nothing for it, which ran
     // 'F 0   R 100' together on the car
-    const codes = chars.map(codeOf), advs = codes.map((c, i) => (c < 0 ? 0.3 : chars[i] === ' ' ? Math.max(a.adv[c], 0.32) : a.adv[c]));
+    const codes = chars.map(a.code), advs = codes.map((c, i) => (c < 0 ? 0.3 : chars[i] === ' ' ? Math.max(a.adv[c], 0.32) : a.adv[c]));
     // a line too long for its box: first no tracking, then the glyphs set closer (to 85% of their advance at
     // most), so it fits instead of being cut at the box's edge
     const gaps = Math.max(0, chars.length - 1), sum = advs.reduce((x, v) => x + v, 0);
@@ -139,6 +139,12 @@ function line(s, boxW, align, tracking, fam) {
 /** A character's cell, -1 for one the atlas has not got (drawn as nothing). Lower case as itself when baked,
  * else as upper case. */
 function codeOf(ch) { const c = String(ch), i = CHARS.indexOf(c); return i >= 0 ? i : CHARS.indexOf(c.toUpperCase()); }
+/** A family's own code lookup, for one whose atlas has more glyphs than the others (font_wide / font_orb: their
+ * small print's figures, capitals and + , - . / :, from Barlow, at their fullwidth forms; see smallPrint). */
+const codeIn = (chars) => (ch) => { const c = String(ch), i = chars.indexOf(c); return i >= 0 ? i : chars.indexOf(c.toUpperCase()); };
+/** A string as the small print of a family with a second face (wide, orb): its figures and capitals at the
+ * fullwidth code points, drawn from that face (Barlow) and not the main one. */
+const smallPrint = (s) => String(s).replace(/[0-9A-Z+,\-./:]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0xFEE0));
 /** Up to 32 codes for a string (the text shader's u_text), padded with -1. */
 function codes(s) {
     const out = [];
@@ -147,4 +153,4 @@ function codes(s) {
     return out;
 }
 
-module.exports = { atlas, codes, codeOf, line, digitAdvance, CHARS, CELL_W, CELL_H, SPREAD, FAMILIES };
+module.exports = { atlas, codes, codeOf, smallPrint, line, digitAdvance, CHARS, CELL_W, CELL_H, SPREAD, FAMILIES };

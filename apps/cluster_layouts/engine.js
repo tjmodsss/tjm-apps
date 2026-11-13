@@ -17,15 +17,20 @@
  * layer is hidden, the service releases the panel and the stock gauges are back.
  *
  * A piece (layout_*.js pieces(o)):
- *   { key, kind: 'flat' | 'panel' | 'dial' | 'band' | 'text' | 'bg' | 'icon' | 'spark' | 'car' | 'leds', x, y, w, h, z,
+ *   { key, kind: 'flat' | 'panel' | 'dial' | 'band' | 'chevron' | 'mdash' | 'mtach' | 'sdash' | 'text' | 'bg' | 'icon' | 'spark' | 'car' | 'leds', x, y, w, h, z,
  *     params: { u_name: [numbers] }       fixed uniforms (sent once),
  *     colors(t, d) -> { name: '#rrggbb' | ['#rrggbb', a] }   sent as u_<name> (vec3, or vec4 with a) when they change,
  *     value(d) -> number, max             dial: the reading on its scale (max: the scale's end); band: 0..1,
+ *     min                                 the lowest value passed on (0 unless set: a power gauge's regeneration),
+ *     range(d) -> [min, max]              instead, the lowest and highest now (a tach that reads kW in an electric drive),
  *     sweep: true                         part of the start-up sweep,
  *     group: 'name'                       built only while that group is active (setGroup: a page),
  *     dyn(d, t) -> { u_name: [numbers] }  more uniforms, sent when they change (at the text rate),
+ *     frame(d, dtMs) -> { u_name: [numbers] }  uniforms worked out every frame (motion: the road's distance
+ *                                         run), sent when they change,
  *     sample(d) -> 0..1, every            a trend line's samples (kind spark), every `every` ms (2 s),
- *     time: true                          u_time from the renderer's clock (car and leds always),
+ *     time: true                          u_time, seconds, sent every frame (TIMED kinds always),
+ *     visible(d) -> bool                  shown only while true (sent when it changes),
  *     text: 'fixed' | (d, t) -> string, align (0 left .. 1 right), tracking (glyph heights)   texts }
  *
  * One small shader per piece, each over only its own rectangle: the shaders the KOMBI is known to run. (One
@@ -37,21 +42,23 @@ const { rgb } = require('./themes');
 
 const DEFAULT_TARGET = 'panel';
 const RATE_HZ = 60;          // value updates a second (a frame of the cluster's 60 Hz), and at once on a new reading
-const TEXT_HZ = 30;          // text and colour updates a second at most (digits that keep up with the needles)
+const TEXT_HZ = 60;          // text and colour updates a second at most: every frame, sent only when they change
 const STALE_MS = 3000;
-const TAU_MS = 30;           // a needle's easing towards its reading: smooth between the car's samples, ~30 ms behind
+const TAU_MS = 10;           // a needle's easing towards its reading: most of the way there in the frame it comes
 const MIN_GAP_MS = 4;        // a reading's update at most this soon after the last
 const EPS = 0.0015;          // a value moving less than this (of its max) is not sent
 const SWEEP_MS = 700;        // up, then as long back down
-const FS = { flat: SH.FLAT_FS, panel: SH.PANEL_FS, dial: SH.DIAL_FS, band: SH.BAND_FS, text: SH.TEXT_FS, bg: SH.BG_FS, icon: SH.ICON_FS, spark: SH.SPARK_FS, car: SH.CAR_FS, leds: SH.LEDS_FS, flag: SH.FLAG_FS, eagles: SH.EAGLE_FS, fireworks: SH.FIREWORKS_FS };
-const Z = { flag: -210, bg: -200, fireworks: -190, eagles: -180, flat: -100, panel: -50, spark: -20, band: 0, dial: 0, car: 0, leds: 0, text: 20, icon: 20 };
-/* kinds that animate on the renderer's own clock (u_time): nothing is sent to move them */
+const FS = { flat: SH.FLAT_FS, panel: SH.PANEL_FS, dial: SH.DIAL_FS, band: SH.BAND_FS, text: SH.TEXT_FS, bg: SH.BG_FS, icon: SH.ICON_FS, spark: SH.SPARK_FS, car: SH.CAR_FS, leds: SH.LEDS_FS, flag: SH.FLAG_FS, eagles: SH.EAGLE_FS, fireworks: SH.FIREWORKS_FS, road: SH.ROAD_FS, chevron: SH.CHEVRON_FS, mdash: SH.MDASH_FS, mtach: SH.MTACH_FS, sdash: SH.SDASH_FS, licon: SH.LICON_FS, e9x: SH.E9X_FS, mbar: SH.MBAR_FS };
+const Z = { flag: -210, bg: -200, road: -40, fireworks: -190, eagles: -180, flat: -100, panel: -50, spark: -20, band: 0, chevron: 0, mdash: -90, sdash: -150, mtach: 0, e9x: 0, mbar: 0, dial: 0, car: 0, leds: 0, text: 20, icon: 20, licon: 20 };
+/* kinds that animate (u_time): their clock sent from the head unit every frame (values()) */
 const TIMED = { car: true, leds: true, flag: true, eagles: true, fireworks: true };
 const HIST = 64;
 /* the most layers up at once while one set replaces another (the service allows 64 an app) */
 const MAX_AT_ONCE = 60;
 /* car data gone for this long before the layout hides (a moment's gap would drop and resend every layer) */
-const LIVE_GRACE_MS = 1500;                 // a trend line's samples
+const LIVE_GRACE_MS = 1500;
+/* wanted this long without a break before the layers go up (a start, or after being hidden) */
+const SETTLE_MS = 1200;
 
 /**
  * startCluster(opts) -> { rebuild(), recolour(), stop(), status() }
@@ -60,6 +67,7 @@ const LIVE_GRACE_MS = 1500;                 // a trend line's samples
  *   opts.theme()  the colours now (the layout's palette for the look now)
  *   opts.data()   the car's data now ({ speed km/h, rpm, gear, stage, mode, oil, coolant, demo, ... })
  *   opts.live(), opts.enabled(), opts.sweep() (optional: the start-up sweep wanted), opts.log
+ *   opts.settleMs how long the layout must be wanted before it shows (SETTLE_MS; the tests: 0)
  *   opts.font() the glyph family ('bold' default, 'light'; font.js), opts.target ('panel' default, 'map', 'hud'), opts.contend (take the slot over from the stock HMI), opts.z
  *   (added to every layer's z: above another client's layers on the same target)
  */
@@ -68,6 +76,7 @@ function startCluster(opts) {
     // the target: the whole panel by default; 'map' is the centre (slot 0x100, 1088x480), taken over from the
     // stock map in Map view while a layer wants it (contend)
     const TARGET = opts.target || 'panel', contend = !!opts.contend, zShift = opts.z || 0;
+    const textures = new Map();     // sampled images by uniform name (sent once)
     let specs = [], pieces = [], fontRef = 0, fontFam = null, shown = false, built = false, sweepEnd = 0, group = opts.group || null;
     /* only the active group's pieces (a page) are built; pieces without a group always */
     const inGroup = (p) => !p.spec.group || p.spec.group === group;
@@ -138,15 +147,29 @@ function startCluster(opts) {
         want.forEach((s) => {
             // shown at once when the old page is up: the new page goes up before the old one goes, so the target
             // is never left empty (which would hand it back to the stock HMI)
-            const ref = cr.effect({ target: TARGET, klass: 'content', z: zShift + (s.z !== undefined ? s.z : Z[s.kind]), x: s.x, y: s.y, w: s.w, h: s.h, fs: FS[s.kind], visible: shown, contend, time: !!(s.time || TIMED[s.kind]) });
+            // (shown only if it shows now: visible(d), a piece that comes and goes with the car's state)
+            const vis = s.visible ? !!s.visible(opts.data()) : true;
+            const ref = cr.effect({ target: TARGET, klass: 'content', z: zShift + (s.z !== undefined ? s.z : Z[s.kind]), x: s.x, y: s.y, w: s.w, h: s.h, fs: FS[s.kind], visible: shown && vis, contend });
             if (!ref) { warnOnce('piece ' + s.key + ' refused here'); return; }
-            const p = { ref, spec: s, colours: '', text: null, value: 0, sent: -1, anim: 0, dyn: '', histSent: -1 };
+            const p = { ref, spec: s, colours: '', text: null, value: 0, sent: -1, anim: 0, dyn: '', histSent: -1, vis, clock: !!(s.time || TIMED[s.kind]) };
             if (s.kind !== 'flat') cr.uniform(ref, 'u_size', [s.w, s.h]);
-            if (s.kind === 'dial' || s.kind === 'band' || s.kind === 'text') {
+            if (s.kind === 'dial' || s.kind === 'band' || s.kind === 'chevron' || s.kind === 'e9x' || s.kind === 'mbar' || s.kind === 'text') {
                 cr.bind(ref, 'u_font', fontRef);
                 cr.uniform(ref, 'u_font_cells', fontCells());
                 cr.uniform(ref, 'u_digit_adv', [Math.round(font.digitAdvance(fam()) * 1000) / 1000]);
             }
+            // textures a piece samples (textures: { u_name: () => { w, h, px (RGBA), anchor } }): sent once, kept
+            Object.keys(s.textures || {}).forEach((u) => {
+                let tx = textures.get(u);
+                if (!tx) {
+                    const img = s.textures[u]();
+                    tx = { ref: cr.asset({ target: TARGET, format: 'rgba8', w: img.w, h: img.h, sampling: 'bilinear' }), img };
+                    cr.pixels(tx.ref, null, img.px);
+                    textures.set(u, tx);
+                }
+                cr.bind(ref, u, tx.ref);
+                cr.uniform(ref, u + '_size', [tx.img.w, tx.img.h]);
+            });
             Object.keys(s.params || {}).forEach((u) => cr.uniform(ref, u, s.params[u]));
             if (s.value) cr.uniform(ref, 'u_value', [0]);
             pieces.push(p);
@@ -160,14 +183,18 @@ function startCluster(opts) {
     }
 
     /** Colours and texts: sent only when they changed (force: all). */
-    function update(force) {
-        const t = opts.theme(), d = opts.data();
+    function update(force, d0) {
+        const t = opts.theme(), d = d0 || opts.data();
         pieces.forEach((p) => {
             const s = p.spec;
             if (!inGroup(p)) return;
             if (s.colors) {
                 const c = s.colors(t, d) || {}, key = JSON.stringify(c);
                 if (force || key !== p.colours) { p.colours = key; Object.keys(c).forEach((n) => cr.uniform(p.ref, 'u_' + n, colourValue(c[n]))); }
+            }
+            if (s.visible) {
+                const v = !!s.visible(d);
+                if (v !== p.vis) { p.vis = v; if (shown) cr.set(p.ref, { visible: v }); }
             }
             if (s.dyn) {
                 const u = s.dyn(d, t) || {}, key = JSON.stringify(u);
@@ -197,9 +224,9 @@ function startCluster(opts) {
     }
 
     /** Trend lines: a sample every s.every ms (2 s) on every page, so a page shows its recent past. */
-    function samples() {
+    function samples(d0) {
         const now = Date.now();
-        let d = null;
+        let d = d0 || null;
         specs.forEach((s) => {
             if (!s.sample) return;
             let H = hist.get(s.key);
@@ -214,17 +241,28 @@ function startCluster(opts) {
     }
 
     /** Values (needles, bands): each eased towards its reading, sent when it moved enough. */
-    let valuesAt = 0;
-    function values() {
-        const d = opts.data(), now = Date.now();
-        // eased by time, not by update: the same ~30 ms whether a reading or the frame timer brought it
+    let valuesAt = 0, valuesAt0 = 0;
+    const clock0 = Date.now();
+    function values(d0) {
+        const d = d0 || opts.data(), now = Date.now();
+        // eased by time, not by update: the same TAU_MS whether a reading or the frame timer brought it
         // (at least a frame's worth an update, so updates in quick succession still settle)
         const k = valuesAt ? 1 - Math.exp(-Math.max(1000 / RATE_HZ, now - valuesAt) / TAU_MS) : 1;
         valuesAt = now;
+        const dt = Math.max(0, Math.min(250, now - (valuesAt0 || now)));
+        valuesAt0 = now;
         pieces.forEach((p) => {
             const s = p.spec;
+            // the animated kinds' clock (u_time, seconds, again from 0 every hour), from here every frame: the
+            // renderer's own clock (time: 1) never ran on the car (Freedom's flag and Modern wide's road stood still)
+            if (p.clock && inGroup(p)) cr.uniform(p.ref, 'u_time', [Math.round(((now - clock0) / 1000) % 3600 * 1000) / 1000]);
+            if (s.frame && inGroup(p)) {
+                const u = s.frame(d, dt) || {};
+                Object.keys(u).forEach((n) => { const v = u[n], key = String(v); if ((p.frameSent || (p.frameSent = {}))[n] !== key) { p.frameSent[n] = key; cr.uniform(p.ref, n, v); } });
+            }
             if (!s.value || !inGroup(p)) return;
-            const max = s.max || 1, want = Math.max(0, Math.min(max * 1.02, Number(s.value(d)) || 0));
+            const r = s.range ? s.range(d) : null, max = r ? r[1] : s.max || 1;
+            const want = Math.max(r ? r[0] : s.min || 0, Math.min(max * 1.02, Number(s.value(d)) || 0));
             p.value += (want - p.value) * k;
             if (Math.abs(want - p.value) < max * EPS / 4) p.value = want;
             if (Math.abs(p.value - p.sent) >= max * EPS) { p.sent = p.value; cr.uniform(p.ref, 'u_value', [Math.round(p.value * 10000) / 10000]); }
@@ -253,7 +291,7 @@ function startCluster(opts) {
         if (on) {
             build();
             shown = true;
-            pieces.forEach((p) => cr.set(p.ref, { visible: true }));
+            pieces.forEach((p) => cr.set(p.ref, { visible: p.vis !== false }));
             if (!opts.sweep || opts.sweep()) sweep();
         } else {
             endSweep();
@@ -265,24 +303,47 @@ function startCluster(opts) {
     }
 
     let lastText = 0;
-    let notLiveAt = 0;
+    let notLiveAt = 0, wantSince = 0;
+    const settleMs = opts.settleMs !== undefined ? opts.settleMs : process.env.CLUSTER_SETTLE_MS !== undefined ? Number(process.env.CLUSTER_SETTLE_MS) : SETTLE_MS;   // (the variable: the app tests)
     function tick() {
         // off: at once; the car's data stale: after LIVE_GRACE_MS, so a gap does not drop and resend everything
         const on = !!opts.enabled(), live = !!opts.live(), now0 = Date.now();
         if (live) notLiveAt = 0; else if (!notLiveAt) notLiveAt = now0;
-        const want = on && (live || (shown && now0 - notLiveAt < LIVE_GRACE_MS)), was = shown;
+        let want = on && (live || (shown && now0 - notLiveAt < LIVE_GRACE_MS));
+        const was = shown;
+        // not shown yet: only once it has been wanted for SETTLE_MS without a break. At the head unit's start the
+        // car's services come up one by one and the other app's presence settles: showing at the first moment it
+        // was wanted put the layers up and took them down again a few times before they stayed (Cluster Centre
+        // flashing, 2026-11-09)
+        if (!want) wantSince = 0; else if (!wantSince) wantSince = now0;
+        if (want && !shown && now0 - wantSince < settleMs) want = false;
         setShown(want);
         if (want && !was) return;   // just built, with everything sent
         if (Date.now() - statusAt > 3000) { statusAt = Date.now(); try { cr.status(); } catch (e) { /* not connected yet */ } }
         if (!want) { const now = Date.now(); if (now - lastText >= 1000 / TEXT_HZ) { lastText = now; samples(); } return; }
         if (sweepEnd && Date.now() >= sweepEnd) endSweep();
-        values();
+        // the car's data once a tick, for the needles, the texts and the colours alike
+        const d = opts.data();
+        values(d);
         const now = Date.now();
-        if (now - lastText >= 1000 / TEXT_HZ) { lastText = now; samples(); update(false); }
+        // (a little under a frame: the timer's own jitter would otherwise skip every other frame)
+        if (now - lastText >= 1000 / TEXT_HZ - 4) { lastText = now; samples(d); update(false, d); }
     }
 
-    /** The pieces made again (the options changed); the glyph atlas stays. */
-    function rebuild() { specs = withCredit(opts.layout().pieces(opts.options())); if (built) { endSweep(); build(); } }
+    /** What the cluster is sent for a set of pieces (functions aside): two equal sets need no new layers. */
+    const sigOf = (list) => JSON.stringify(list.map((x) => [x.key, x.kind, x.x, x.y, x.w, x.h, x.z, x.group || '', x.params || {}, typeof x.text === 'string' ? x.text : '',
+        x.align, x.tracking, !!x.value, x.max || 0]));
+    /** The pieces made again (the options changed); the glyph atlas stays. Pieces that come out the same (a driver
+     * profile's settings applied again, a setting that changes nothing on the cluster) are only refreshed: the
+     * layers aren't taken down and put up again (the cluster flashed). */
+    function rebuild() {
+        const next = withCredit(opts.layout().pieces(opts.options()));
+        const same = sigOf(next) === sigOf(specs);
+        specs = next;
+        if (!built) return;
+        if (same) { pieces.forEach((p, i) => { p.spec = specs.find((x) => x.key === p.spec.key && x.kind === p.spec.kind) || p.spec; }); update(true); return; }
+        endSweep(); build();
+    }
     /** Another group (page): its pieces built, the new page up before the old one goes. */
     function setGroup(g) {
         if (g === group) return;

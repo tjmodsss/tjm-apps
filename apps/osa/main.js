@@ -22,11 +22,14 @@ mgu.run({
     async start(ctx) {
         const { ui, log } = ctx;
         let page = 0;
-        // PNGs are decoded to pixels, then converted to native drawing commands.
-        // The native mgu-render/1 transport does not support pixel-image uploads.
-        const rasterLayer = (key, src) => G.layer(key, src.w, src.h, (c) => {
+        const rasterRuns = src => {
             const d = src.d, w = src.w, h = src.h;
+            // Join matching runs across rows to avoid seams inside solid areas.
+            let previousRuns = new Map();
+            const runs = [];
+            const keepRun = run => runs.push(run);
             for (let y = 0; y < h; y++) {
+                const currentRuns = new Map();
                 let run = -1, last = -1;
                 for (let x = 0; x <= w; x++) {
                     let color = -1;
@@ -41,19 +44,66 @@ mgu.run({
                         }
                     }
                     if (color !== last) {
-                        if (last !== -1) c.fillRect(run, y, x - run, 1, last);
+                        if (last !== -1) {
+                            const id = run + ':' + x + ':' + last;
+                            const rect = previousRuns.get(id);
+                            if (rect) {
+                                rect.height++;
+                                previousRuns.delete(id);
+                                currentRuns.set(id, rect);
+                            } else {
+                                currentRuns.set(id, { x: run, y, width: x - run, height: 1, color: last });
+                            }
+                        }
                         run = color === -1 ? -1 : x;
                         last = color;
                     }
                 }
+                previousRuns.forEach(keepRun);
+                previousRuns = currentRuns;
             }
-        }, 1);
-        const aboutLogoPixels = decodePng(path.join(__dirname, 'brmodz_logo.png'), 300, 124);
-        const instagramPixels = decodePng(path.join(__dirname, 'qr_instagram.png'), 116, 120);
-        const facebookPixels = decodePng(path.join(__dirname, 'qr_facebook.png'), 116, 120);
-        const aboutLogo = rasterLayer('osa_about_logo', aboutLogoPixels);
-        const instagramQr = rasterLayer('osa_about_instagram', instagramPixels);
-        const facebookQr = rasterLayer('osa_about_facebook', facebookPixels);
+            previousRuns.forEach(keepRun);
+            return runs;
+        };
+        let aboutLogoRuns;
+        let aboutLayers;
+        function renderAbout(cv, t) {
+            if (!aboutLayers) {
+                aboutLogoRuns = rasterRuns(decodePng(path.join(__dirname, 'brmodz_logo.png'), 300, 124));
+                aboutLayers = [
+                    ['osa_about_instagram', 'qr_instagram.png', 116, 120, 660, 390],
+                    ['osa_about_facebook', 'qr_facebook.png', 116, 120, 824, 390]
+                ].map(([key, file, width, height, x, y]) => {
+                    const runs = rasterRuns(decodePng(path.join(__dirname, file), width, height));
+                    const layer = G.layer(key, width, height, canvas => {
+                        runs.forEach(run => canvas.fillRect(run.x, run.y, run.width, run.height, run.color));
+                    }, 1);
+                    return [layer, x, y];
+                });
+            }
+            G.panel(cv, t, 24, 44, 1552, 468, null);
+            // Full-screen iDrive scales the canvas. Align adjacent runs to the
+            // same display-pixel boundaries so fractional edges cannot leave seams.
+            const scale = cv.place ? cv.place.scale : 1;
+            const pixelEdge = coordinate => Math.round(coordinate * scale) / scale;
+            aboutLogoRuns.forEach(run => {
+                const x = 650 + run.x;
+                const y = 58 + run.y;
+                const left = pixelEdge(x);
+                const top = pixelEdge(y);
+                const right = pixelEdge(x + run.width);
+                const bottom = pixelEdge(y + run.height);
+                cv.fillRect(left, top, right - left, bottom - top, run.color);
+            });
+            aboutLayers.forEach(([layer, x, y]) => cv.blit(layer, x, y));
+            cv.text('OIL SERVICE ASSISTANT', 800, 225, 30, t.text,
+                { align: 'center', font: 'bold', spacing: 2.5 });
+            cv.text('Monitors engine oil, coolant and transmission oil temperatures during service.', 800, 258, 19, t.dim, { align: 'center' });
+            cv.text('Live estimates show the expected time to reach the selected target temperature.', 800, 285, 19, t.dim, { align: 'center' });
+            cv.text('Starting conditions and completed warm-up times are stored locally on the head unit.', 800, 312, 19, t.dim, { align: 'center' });
+            cv.text('Previous sessions provide historical comparisons; data is never uploaded to the cloud.', 800, 339, 19, t.dim, { align: 'center' });
+            cv.text('Developed by dzooky@bmrmodz', 800, 372, 18, t.text, { align: 'center', font: 'bold' });
+        }
         const HISTORY_FILE = path.join(ctx.dataDir, 'osa-warmup-history.json');
         const MAX_HISTORY = 300;
         let history = [];
@@ -415,17 +465,7 @@ mgu.run({
                 cv.text(atfAverage('atf-cool') === null ? '--' : Math.round(atfAverage('atf-cool')) + ' min', 960, 400, 30, t.text, { font: 'num' });
                 cv.text('ATF warm-up starts below 30°C; cool-down starts above 40°C after engine stop.', 64, 470, 18, t.dim);
             } else if (page === 3) {
-                G.panel(cv, t, 24, 44, 1552, 468, null);
-                cv.blit(aboutLogo, 650, 58);
-                cv.text('OIL SERVICE ASSISTANT', 800, 225, 30, t.text,
-                    { align: 'center', font: 'bold', spacing: 2.5 });
-                cv.text('Monitors engine oil, coolant and transmission oil temperatures during service.', 800, 258, 19, t.dim, { align: 'center' });
-                cv.text('Live estimates show the expected time to reach the selected target temperature.', 800, 285, 19, t.dim, { align: 'center' });
-                cv.text('Starting conditions and completed warm-up times are stored locally on the head unit.', 800, 312, 19, t.dim, { align: 'center' });
-                cv.text('Previous sessions provide historical comparisons; data is never uploaded to the cloud.', 800, 339, 19, t.dim, { align: 'center' });
-                cv.text('Developed by dzooky@bmrmodz', 800, 372, 18, t.text, { align: 'center', font: 'bold' });
-                cv.blit(instagramQr, 660, 390);
-                cv.blit(facebookQr, 824, 390);
+                renderAbout(cv, t);
             }
 
             G.frame(cv, t, ['Engine', 'Transmission', 'Statistics', 'About'], tbdTab(page), []);

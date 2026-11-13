@@ -24,6 +24,7 @@ const previews = require('./previews');
 const sensors = require('./sensors');
 const visible = require('./visible');
 const badges = require('./badges');
+const tz = require('./tz');
 
 const W = 1600, H = 520;
 const A = G.withAlpha;
@@ -89,6 +90,8 @@ class Page {
         if (!s) return '';
         if (s.type === 'bool') return v ? 'On' : 'Off';
         if (s.type === 'number' && WARN_KEYS.indexOf(k) >= 0) return warnText(k, v, this.get('units') === 'us');
+        if (k === 'timeZone') return tzText(v);
+        if (k === 'tankLitres') return fmtInt(v) + ' L';
         if (s.type === 'number') return k === 'shiftBefore' ? (v ? fmtInt(v) + ' rpm before' : 'At the redline') : fmtInt(v) + ' rpm';
         return this.optLabel(k, v);
     }
@@ -664,6 +667,8 @@ function warnText(k, v, us) {
     if (k === 'warnBoost') return us ? Math.round(v * 14.5038) + ' psi' : v.toFixed(1) + ' bar';
     return us ? Math.round(v * 9 / 5 + 32) + ' °F' : v + ' °C';
 }
+/** a "timeZone" setting value as the row shows it (shared/tz.js) */
+function tzText(v) { return tz.name(v); }
 function fmtInt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 function label(cv, x, y, s) { cv.text(s.toUpperCase(), x, y, 14, C.label, { font: 'bold', spacing: 2.4, literal: true }); }
 function note(cv, x, y, lines) { lines.forEach((s, i) => cv.text(s, x, y + i * 26, 17, C.dim, { literal: true })); }

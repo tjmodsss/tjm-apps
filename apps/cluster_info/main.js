@@ -39,6 +39,9 @@ mgu.run({
         const { ui, settings, log } = ctx;
         const car = new Car(ctx, ['temps', 'rpm', 'torque']);
         const providers = startProviders(log);
+        /* The car's state (kit/awake.js): told it is switched off, the panel asks no app for anything - their reads go
+         * through the car's gateway and kept a locked car from sleeping (Nov 10 2026). */
+        const awake = require('./kit/awake').watch(ctx, log);
         const live = { indicator: 'off', night: null, profile: null, raw: {} };
         const sigStatus = {};
         const one = (v, key) => {
@@ -141,7 +144,13 @@ mgu.run({
                     return { text: metric ? live.boost.toFixed(2) : (live.boost * 14.5038).toFixed(1), label: metric ? 'BOOST bar' : 'BOOST psi', src: 'car signal (sport display)' };
                 }
                 if (name === 'rpm') return G.isNum(d.rpm) && !d.demo ? { text: String(Math.round(d.rpm / 50) * 50), src: 'car signal' } : null;
-                if (name === 'torque') return G.isNum(d.torque) && !d.demo ? { text: String(Math.round(d.torque)), src: 'car signal' } : null;
+                if (name === 'torque') {
+                    if (!G.isNum(d.torque) || d.demo) return null;
+                    // Settings > Torque unit: Nm, or kgm (to a tenth)
+                    return settings.get('torqueUnit') === 'kgm'
+                        ? { text: (d.torque / 9.80665).toFixed(1), label: 'KGM', src: 'car signal' }
+                        : { text: String(Math.round(d.torque)), src: 'car signal' };
+                }
             }
             if ((name === 'oil' || name === 'coolant') && !d.demo && G.isNum(d[name])) return { c: d[name], src: 'car signal' };
             const p = providers.value(name);
@@ -182,7 +191,7 @@ mgu.run({
             },
             /** The kW meter's slot (0-2 among the slots in use; values with a lower slot go before it). */
             powerAt() { return Math.max(0, slots().indexOf('power')); },
-            keepFast() { providers.want({ power: slots().indexOf('power') >= 0 || (settings.get('underline') || 'off') !== 'off', values: chosen() }); },
+            keepFast() { if (!awake.off()) providers.want({ power: slots().indexOf('power') >= 0 || (settings.get('underline') || 'off') !== 'off', values: chosen() }); },
             indicator: () => live.indicator,
             night: () => live.night === true,
         };

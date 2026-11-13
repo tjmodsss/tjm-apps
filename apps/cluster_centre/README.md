@@ -19,9 +19,7 @@ speed and its line on the left, the efficiency gauge and the range on the right,
 By default the pages are made smaller and sit between them (about x 290 to 850 of the 1088); **The whole
 middle** draws them at full size, under those readouts at its edges.
 
-Both have an icon by every reading, a trend line of its last two minutes, a mark where it turns too hot, and
-the top-down xDrive car whose axles light up with their share while the torque flows to them (animated by the
-cluster, nothing sent to move it).
+Both have an icon by every reading, a trend line of its last two minutes and a mark where it turns too hot.
 
 ![Temperatures](../../docs/centre/temps.png)
 
@@ -38,20 +36,19 @@ while it runs.
 | Fuel and boost | high and low pressure fuel, boost (with its target), ignition timing | the engine unit (UDS) |
 | Warm-up | oil temperature, minutes and the time until it is warm (from how fast it is warming), the rev limit for now (rising from the cold limit to the redline as the oil warms), coolant | the car's signals |
 | Turbo cool-down | the countdown after hard driving (30 s to 3 min, from how long it was hard), counting down below 3000 rpm and at idle | the car's signals |
-| xDrive | front / rear torque split, the car from above with its axles lit by their share | the car's split signal; the transfer case when the car sends none |
 | eDrive | battery charge and electric range, battery power (charging / drawing, either side of zero), battery temperature and its cells' spread, where the power goes (driving, climate, seats), fuel range | the car (battery temperature, power distribution); eDrive Live (charge, power) |
 | Engine | engine on or off (electric), engine speed, minutes the engine ran this drive and the share of it, starts this drive, why it started (when the car's signal is found) | the car's signals |
 | Steering | steering angle and yaw rate (when the car's signals are found), lateral g | the car's signals |
 | 0-60 and quarter mile | arm with **Arm 0-60 timer**, stop, go: the time to 60 mph (100 km/h), the quarter mile and its trap speed, the last run and the best | the car's speed |
-| Custom 1 and 2 | 1, 2, 3, 4 or 6 slots, each any of 23 readings, as numbers, bars or arc gauges | as the readings |
+| Custom 1 and 2 | 1, 2, 3, 4 or 6 slots, each any of 21 readings, as numbers, bars or arc gauges | as the readings |
 
 | Fuel and boost | Warm-up |
 |---|---|
 | ![](../../docs/centre/fuel.png) | ![](../../docs/centre/warmup.png) |
-| **xDrive** | **eDrive** |
-| ![](../../docs/centre/xdrive.png) | ![](../../docs/centre/edrive.png) |
-| **Turbo cool-down** | **0-60 and quarter mile** |
-| ![](../../docs/centre/cooldown.png) | ![](../../docs/centre/timer.png) |
+| **eDrive** | **Turbo cool-down** |
+| ![](../../docs/centre/edrive.png) | ![](../../docs/centre/cooldown.png) |
+| **0-60 and quarter mile** | |
+| ![](../../docs/centre/timer.png) | |
 | **Engine** | **Custom page, arc gauges** |
 | ![](../../docs/centre/engine.png) | ![](../../docs/centre/custom2.png) |
 | **Steering** | **Arc gauges, orange, metric** |
@@ -59,11 +56,11 @@ while it runs.
 
 ### Modern look
 
-| Temperatures | xDrive |
+| Temperatures | eDrive |
 |---|---|
-| ![](../../docs/centre/modern/temps.png) | ![](../../docs/centre/modern/xdrive.png) |
-| **eDrive** | **Warm-up** |
-| ![](../../docs/centre/modern/edrive.png) | ![](../../docs/centre/modern/warmup.png) |
+| ![](../../docs/centre/modern/temps.png) | ![](../../docs/centre/modern/edrive.png) |
+| **Warm-up** | |
+| ![](../../docs/centre/modern/warmup.png) | |
 
 ## The app
 
@@ -84,7 +81,7 @@ Settings, 52 of them, kept for each driver profile:
 - **Warm-up**: the oil temperature that counts as warm, the rev limit while cold and when warm. The cool-down:
   what counts as hard driving.
 - **Units**: temperature (°F / °C), pressure (psi / bar / kPa), speed and distance (mph / km/h), torque
-  (lb-ft / Nm).
+  (lb-ft / Nm / kgm).
 - **Warnings**: when oil, coolant, intake air, gearbox and battery count as too hot, and low pressure fuel as
   too low (the value and its bar turn red).
 - **Custom pages**: how many slots, the tile style, and the reading in each slot.
@@ -101,6 +98,10 @@ signal in the car's own catalog (`/etc/oap/someip/someip-interfaces.json`).
 Layouts shows a layout over the whole panel, Cluster Centre waits (its page would be hidden under it), and its
 screen says so.
 
+With the car switched off or locked it asks nothing of the car's units or of eDrive Live (`shared/data.js` with
+`kit/awake.js`, as Cluster Layouts: its README, *Nothing asked of a parked car*): until 0.8.1, Show on kept those
+requests going with the car locked, and the car couldn't sleep.
+
 ## Not seen on the car yet
 
 The centre take-over is the one Waze on cluster uses on this car, and every signal and engine-unit read is
@@ -109,6 +110,5 @@ first: the pages appear in the centre with Map view, the stock dials and warning
 shift light keeps up with the engine. While this shows, it covers a Waze map in the centre; turn **Show in
 the cluster** off for the map.
 
-**With Cluster Layouts:** a layout normally covers the whole panel, so the pages wait while one shows. Set the
-layout's **Centre of the cluster** to **Cluster Centre's pages** and they show in the layout's centre window,
-at full size (the layout hides the stock readouts that **Size in the centre** keeps clear of).
+**With Cluster Layouts:** a layout covers the whole panel, so the pages wait while one shows. (Showing them in a
+layout's centre window is retired: it did not work reliably on the car.)

@@ -211,6 +211,13 @@ class Display {
         this.gpu.grab(this.grabbing || (this.own() && gate && !process.env.MGU_NO_GRAB));
     }
 
+    /**
+     * The renderer can hold the iDrive controller (mgu-inputgate loaded in the HMI). Some starts it can't
+     * ("controller": false in its READY): the knob then only reaches the HMI's own bar buttons. The kit still
+     * draws the full screen, but keeps those buttons (all of them, Settings too, in the HMI's order) under
+     * its slim bar: the HMI's focus events light the one the knob is on and a press goes through the HMI.
+     */
+    ctl() { const g = this.gpu; return !!(g && (!g.native || !g.info || g.info.controller)); }
     /** The kit runs the screen: mgu-render/1 with touch, full-screen layout. */
     own() { return !!(this.gpu && this.gpu.ready && !this.blocked && this.gpu.native && this.gpu.touch && this.place && this.place.full); }
     /** own() but for the placement, which depends on it (the bar's height): the renderer and layout allow it. */
@@ -222,7 +229,7 @@ class Display {
      * Settings is the header's last tab where the kit runs the screen (the app has a Settings button), unless
      * the screen says "settingsTab": false in app.json (the app draws its own settings page and tab there).
      */
-    hasSettings() { return !!(this.screen && this.screen.settingsTab !== false && (this.screen.buttons || []).some((b) => b[0] === 'BTN_SETTINGS')); }
+    hasSettings() { return !!(this.ctl() && this.screen && this.screen.settingsTab !== false && (this.screen.buttons || []).some((b) => b[0] === 'BTN_SETTINGS')); }
     /** The header's tabs: the app's, then Settings. { tabs, sel, badges, settings: index or -1 } */
     _tabList() {
         const base = this.tabInfo || { tabs: [], sel: -1, badges: [] };
@@ -252,7 +259,7 @@ class Display {
         Promise.resolve(this.ui.close(this.screen.name)).catch((e) => this.log.warn('back: ' + e));
     }
     /** A sheet can be shown now (else the app falls back to the HMI's own screens). */
-    canSheet() { return this.own() && this.active(); }
+    canSheet() { return this.own() && this.active() && this.ctl(); }   // a sheet needs the knob held (else the HMI's own screens)
 
     /** Draw sheet over the page until it closes (sheet.js). false: not possible now. */
     openSheet(sheet) {
@@ -513,7 +520,7 @@ class Display {
     /** The HMI's own bar buttons: hidden where the kit runs the screen (its bar, tabs and page buttons
      *  take their place), so none shows around an HMI popup; shown for every other path. */
     _hmiBar() {
-        const hide = this.ownable() && !this.blocked;
+        const hide = this.ownable() && !this.blocked && this.ctl();
         if (this.hmiBarHidden === hide) return;
         this.hmiBarHidden = hide;
         (this.screen.buttons || []).forEach((b) => { if (this.ui.visible) this.ui.visible(b[0], !hide); });
@@ -533,7 +540,7 @@ class Display {
         const scr = this.gpu.screen, v = this.layout();
         let pl;
         if (v === 'standard' || scr.w !== HMI.screen.w || scr.h !== HMI.screen.h) {
-            pl = { x: HMI.img.x, y: HMI.img.y, w: HMI.img.w, h: HMI.img.h, scale: 1, ox: 0, oy: 0, full: false };
+            pl = { x: HMI.img.x, y: HMI.img.y, w: HMI.img.w, h: Math.min(HMI.img.h, HMI.barTop - HMI.img.y), scale: 1, ox: 0, oy: 0, full: false };   // never over the HMI's bar
         } else {
             // the surface covers the whole screen, so the HMI's own bar can't show under the back
             // arrow column; the page content goes right of that column
@@ -570,7 +577,7 @@ class Display {
         this._hmiBar();
         this.recorders.clear();             // text sizes depend on the scale
         this.app = null; this.outRec = null;
-        this.log.info('display: renderer placement ' + JSON.stringify(pl) + ' (layout ' + v + ')');
+        this.log.info('display: renderer placement ' + JSON.stringify(pl) + ' (layout ' + v + (this.ctl() ? '' : ', no controller gate: the knob goes through the HMI bar') + ')');
         // (only a real change: hideButton places again for every button it hides)
         const key = JSON.stringify([pl, this.own(), this.screen ? this.buttons().map((b) => b.id) : []]);
         if (key !== this.layoutKey) { this.layoutKey = key; this._layoutChanged(); }
@@ -910,7 +917,7 @@ class Display {
      * with the controller, turn the pages); they stay in the HMI's bar for the other paths.
      */
     buttons() {
-        const own = this.ownable();
+        const own = this.ownable() && this.ctl();
         if (this._btns && this._btnsOwn === own) return this._btns;
         this._btnsOwn = own;
         const m = new Recorder(1, 1);

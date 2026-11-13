@@ -1,8 +1,8 @@
 {
   "id": "mgu_phone_terminal",
   "title": "TJM Phone Terminal",
-  "description": "Secure QR pairing for a temporary mobile terminal on the MGU",
-  "version": "0.1.5",
+  "description": "Temporary phone-browser terminal with QR pairing, command output, and file downloads.",
+  "version": "0.1.6",
   "vendor": "TJM",
   "loggingId": "OB19",
   "iconGlyph": ">_",

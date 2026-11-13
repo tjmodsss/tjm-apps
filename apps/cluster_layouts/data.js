@@ -6,27 +6,32 @@
  *   car signals (kit/car.js): speed, rpm, gear, stage, oil, coolant, torque, g (long / lat)
  *   MDrive.dataDisplayGearbox: the S / M programme
  *   EnvironmentalInformation.ExteriorTemperature: outside
- *   BasicDataSet.basicDataSet: gearbox oil, the xDrive split (rear %, when the car fills it)
+ *   BasicDataSet.basicDataSet: gearbox oil
  *   Efficiencytainment2.statusBatteryTemperature: the battery's temperature (avg / min / max)
  *   KombiIF.statusDisplayElectricalPowerDistribution: the car's power distribution figures
  *   the engine unit over UDS (config.dme, as M Vitals reads it): intake air, fuel pressures (high, low), boost
- *     target and actual, ignition timing; the gearbox unit: its oil temperature; the transfer case (config.xdrive):
- *     front axle torque, for the split when the car's own signal has none
+ *     target and actual, ignition timing; the gearbox unit: its oil temperature
+ * (No xDrive split: neither the car's split signal nor the transfer case's front torque gave usable readings on the
+ * car, Nov 9 2026: removed.)
  *   eDrive Live, through the shared folder: battery charge and power
  *
  * The diagnostic reads are the slow part: only the values the page on screen needs are read, about twice a
  * second (want(keys)); the rest every 10 s; none while nothing is shown or nothing wants them (the car shows
- * "Diagnostic mode active" while they run).
+ * "Diagnostic mode active" while they run), and none - nor eDrive Live asked for anything - while the car is switched
+ * off (kit/awake.js: its own state, else moved or ran in the last 3 min). "Shown" is a setting, on with the car
+ * locked: Nov 10 2026 these reads and eDrive Live's for the shared power kept a locked car from sleeping ("Battery
+ * management: malfunction while shutting down the vehicle electronics", body controller 801C16 - 801C18).
  */
 const Car = require('./kit/car');
 const { Diag } = require('./kit/diag');
 const { DidReader } = require('./kit/dids');
 const { startProviders } = require('./providers');
+const { createFuse } = require('./kwfuse');
+const Awake = require('./kit/awake');
 
 const isNum = (v) => typeof v === 'number' && isFinite(v);
 const PROGRAMS = { S_MINUS_PROGRAMM: 'S', M_MINUS_PROGRAMM: 'M', 1: 'S', 2: 'M' };
-const DME_KEYS = ['iat', 'hpfp', 'lpfp', 'timing', 'boostCtl', 'egs', 'lmv'];
-const SPLIT_OK = (q) => q === undefined || q === null || q === 2 || q === 10 || q === 'SIGNALWERT_IST_GUELTIG' || q === 'SIGNALWERT_IST_GUELTIG__REKALIBRIERUNGSBEDARF';
+const DME_KEYS = ['iat', 'hpfp', 'lpfp', 'timing', 'boostCtl', 'egs'];
 
 /*
  * The driving mode, as the car's FES service sends it: BMW's FES mode table (TAB_FES_MODUS_ARG in the G05's
@@ -114,6 +119,14 @@ function entries(v, key, out) {
     return out;
 }
 
+/** The first value under `key` however deep the binding wraps it. */
+function one(v, key, depth) {
+    if (!v || typeof v !== 'object' || (depth || 0) > 6) return undefined;
+    if (key in v) return v[key];
+    for (const k of Object.keys(v)) { const r = one(v[k], key, (depth || 0) + 1); if (r !== undefined) return r; }
+    return undefined;
+}
+
 function startData(ctx, opts) {
     const { log } = ctx;
     const cfg = ctx.spec.config || {}, S = cfg.scaling || {};
@@ -126,6 +139,9 @@ function startData(ctx, opts) {
     /** The first number in a value whose field name matches re (else the first number at all). */
     const numberIn = (v, re) => { const ls = leaves(v).filter((l) => typeof l.v === 'number'); const m = ls.find((l) => re.test(l.key)) || ls[0]; return m ? m.v : undefined; };
     const car = new Car(ctx, ['rpm', 'speed', 'temps', 'gear', 'torque', 'accel']);
+    // shown and the car switched on: the only time anything is asked of the car's units or of eDrive Live
+    const awake = Awake.watch(ctx, log, { sample: () => { const c = car.data(); return { speed: c.speed, rpm: c.rpm }; } });
+    const active = () => (!opts || !opts.shown || opts.shown()) && awake.on();
     car.onSample(() => fresh_());
     const x = { at: {} };          // readings that are not the kit's: value and when it came
     /* fresh: whoever shows the data hears of each new reading at once (the engine draws it then, not at its
@@ -144,9 +160,6 @@ function startData(ctx, opts) {
     const detect = (v, why) => { if (detected.vehicle !== v) { detected.vehicle = v; detected.why = why; log.info('vehicle: ' + v + ' (' + why + ')'); } };
     const vehicleNow = () => (setting('vehicle') === 'ice' || setting('vehicle') === 'phev' ? setting('vehicle') : detected.vehicle || 'phev');
     const ice = () => vehicleNow() === 'ice';
-    /** Settings > Battery readings: 'off' leaves the high-voltage battery unit alone (charge and power from
-     * eDrive Live or the car only). */
-    const batteryReads = () => setting('batteryReads') !== 'off';
     const fresh_ = () => { for (const f of freshFns) { try { f(); } catch (e) { /* the listener's own */ } } };
     const put = (k, v) => { if (isNum(v)) { const ch = x[k] !== v; x[k] = v; x.at[k] = Date.now(); if (ch) fresh_(); } };
     const fresh = (k, ms) => isNum(x[k]) && Date.now() - x.at[k] < (ms || 30000);
@@ -161,6 +174,11 @@ function startData(ctx, opts) {
     // (each signal's raw value is kept for the Signals screen; only its first 20 distinct values go to the log,
     // since the boost pressure in it changes all the time while driving)
     const raw = {}, rawLogged = {};
+    // the battery's power between eDrive Live's readings (kwfuse.js; below: "the battery's power"), fed by the car's
+    // own power signals here as they come
+    const fuse = createFuse();
+    /** A number under one of these field names however deep, or null; the binding's invalid values (all bits set) left out. */
+    const numAt = (v, key) => { const e = entries(v, key)[0]; const n = e ? e[key] : undefined; return isNum(n) && n !== 255 && n !== 65535 && n !== 0x7FFF && n !== 0xFFFFFFFF ? n : null; };
     const fes = (name) => (v) => {
         const j = JSON.stringify(v);
         if (raw[name] !== j) {
@@ -188,14 +206,18 @@ function startData(ctx, opts) {
             if (isNum(b) && Date.now() - (x.at.boostRawLog || 0) > 60000) { x.at.boostRawLog = Date.now(); log.info('raw FES boost ' + b + ' (max ' + (v && v.displayMaximumValueBoostPressure) + ')'); }
             if (isNum(b) && b >= 0 && b < Math.min(254, invalid)) put('boostCar', b * factor + (bs.offset || 0));
         },
+        // the sport display's powertrain power (+ driving, - recuperating; its unit fitted in kwfuse.js)
+        displaySportPowertrain: (v) => {
+            fes('displaySportPowertrain')(v);
+            const p = numAt(v, 'displaySportPowerPowertrain');
+            if (p !== null) fuse.signal(Date.now(), 'sport', p);
+        },
     }, 'driving mode');
     watch('de.bmw.infrastructure.EnvironmentalInformation', { ExteriorTemperature: (v) => put('outside', sc('ambient', v && v.temperatureExterior)) }, 'outside temperature');
     watch('de.bmw.infrastructure.analytics.BasicDataSet', {
         basicDataSet: (v) => {
             const g = sc('gearboxTemp', v.valueTemperatureTransmissionOil);
             if (isNum(g) && g > -40 && g < 160) put('gearbox', g);
-            const q = v.qualifierValueDistributionLongitudinalTorqueRearAxisFrontAxis, split = SPLIT_OK(q) ? sc('torqueSplitRear', v.valueDistributionLongitudinalTorqueRearAxisFrontAxis) : null;
-            if (isNum(split) && split > 0 && split <= 100) put('splitRear', split);
         },
     }, 'basic data set');
     watch('de.bmw.infotainment.drivingexcitement.Efficiencytainment2', {
@@ -204,7 +226,32 @@ function startData(ctx, opts) {
             const bt = (raw) => { const t = sc('batteryTemp', raw); return isNum(t) && t > -30 && t < 70 ? t : null; };
             if (e) { put('battTemp', bt(e.actualValueTemperatureHighVoltageStorage)); put('battMin', bt(e.actualValueTemperatureHighVoltageStorageMinimum)); put('battMax', bt(e.actualValueTemperatureHighVoltageStorageMaximum)); }
         },
-    }, 'battery temperature', { pollMs: 30000 });
+        /* The stock cluster's own power meter: electric drive and recuperation, relative (%). Found in the car's catalog
+         * (Nov 10 2026 log); the fastest candidate for the kW gauges, fitted to eDrive Live's readings (kwfuse.js). Re-read
+         * every 2 s too: a value that doesn't change may not be notified. */
+        statusPowerRelativHybrid: (v) => {
+            fes('statusPowerRelativHybrid')(v);
+            const drive = numAt(v, 'displayActualValuePowerRelativeDrivingElectric'), recup = numAt(v, 'displayActualValuePowerRelativeRecuperation');
+            if (drive !== null || recup !== null) fuse.signal(Date.now(), 'rel', { drive: drive || 0, recup: recup || 0 });
+        },
+    }, 'battery temperature and power meter', { pollMs: 2000 });
+    // the onboard computer's electric consumption now (x the speed: a power), as a third candidate
+    watch('de.bmw.infotainment.resetlogic.ResetLogic', {
+        currentConsumption: (v) => {
+            fes('currentConsumption')(v);
+            const c = numAt(v, 'consumptionElectricCurrentDigit');
+            if (c !== null) fuse.signal(Date.now(), 'cons', c);
+        },
+    }, 'consumption now', { pollMs: 2000 });
+    // the cruise control's set speed as the head-up display shows it (the driving assistant's view services send nothing
+    // on this car): 0 or invalid while it is off; in the display's unit
+    watch('de.bmw.infotainment.displaydataserver.DisplayDataServer', {
+        functionalLibraryData: (v) => {
+            fes('functionalLibraryData')(v);
+            const c = numAt(v, 'cruiseCtrlSpeedHUD');
+            if (c !== null) { x.cruiseSet = c; x.at.cruiseSet = Date.now(); }
+        },
+    }, 'cruise control (head-up display)', { pollMs: 2000 });
     /* the car's ranges (KombiIF.statusRangeTankStatus, as installed apps declare it): the fields' names
      * differ by car, so numbers are picked by their names - range / Reichweite, electric (elec, ev, hv, bev)
      * or fuel (fuel, tank, kraftstoff, combustion), and the tank's level; kilometres, invalid at 0xFFFF and up */
@@ -232,6 +279,43 @@ function startData(ctx, opts) {
     watch('de.bmw.infrastructure.VehicleInformation', {
         Range: (v) => { fes('Range')(v); pickRanges(v); },
     }, 'range');
+    /*
+     * The tyres: pressure and temperature at each corner from the car's tyre monitor (TPMS), as bimmer-lab's Cluster
+     * Themes reads it (MIT, Copyright (c) 2026 bimmer-lab). The car never notifies these (BMW's own x_call only reads
+     * them), so they are read every 10 s. Pressure: 0.1 x raw in the car's pressure unit (Vehicle
+     * statusNewCurrentUnitsStatusExt: bar, kPa or psi; 65532 and up none), kept in bar; temperature: raw - 40 degrees,
+     * kept in C (this G05 sent raw 53-57 on a 10 C day, Celsius with the car set to F: so only a value no tyre in C
+     * reaches is taken as F).
+     */
+    const TYRES = ['FL', 'FR', 'RL', 'RR'], PRESS_UNITS = { 1: 'BAR', 2: 'KPA', 3: 'PSI' }, PRESS_TO_BAR = { BAR: 1, KPA: 0.01, PSI: 1 / 14.5038 };
+    let carPress = null, tyreRawLogged = false;
+    const tyreBar = (raw) => {
+        if (!isNum(raw) || raw < 0 || raw >= 65532) return null;
+        const v = raw / 10, k = PRESS_TO_BAR[carPress];
+        const bar = k ? v * k : v >= 0.5 && v <= 6 ? v : v >= 7 && v < 60 ? v / 14.5038 : v >= 60 && v <= 600 ? v / 100 : null;
+        return isNum(bar) && bar > 0.3 && bar < 6 ? bar : null;
+    };
+    const tyreC = (raw) => {
+        if (!isNum(raw) || raw < 0 || raw >= 65535) return null;
+        const v = raw - 40, c = v > 85 ? (v - 32) * 5 / 9 : v;
+        return c > -40 && c < 150 ? c : null;
+    };
+    const tyreRead = (key, conv, field) => (v) => {
+        if (!tyreRawLogged) { tyreRawLogged = true; log.info('raw tyre ' + field + ': ' + JSON.stringify(v).slice(0, 300)); }
+        TYRES.forEach((k) => { const r = conv(one(v, 'actualValue' + field + 'Tyre' + k + 'H')); if (r !== null) put(key + k, r); });
+    };
+    // (only for an app that shows them, opts.tyres: one that doesn't declare the services gets a warning a start)
+    if (opts && opts.tyres) watch('de.bmw.infotainment.vehicle.TPMS', {
+        statusTyrePressure: tyreRead('tyreP', tyreBar, 'Pressure'),
+        statusTyreTemperature: tyreRead('tyreT', tyreC, 'Temperature'),
+    }, 'tyres', { pollMs: 10000 });
+    if (opts && opts.tyres) watch('de.bmw.infotainment.vehicle.Vehicle', {
+        statusNewCurrentUnitsStatusExt: (v) => {
+            const u = one(v, 'unitOfMeasurementAirPressure'), n = u && typeof u === 'object' ? (u.name || u.value) : u;
+            const p = PRESS_UNITS[n] || (/BAR|KPA|PSI/.test(String(n)) ? String(n).match(/BAR|KPA|PSI/)[0] : null);
+            if (p && p !== carPress) { carPress = p; log.info('car pressure unit: ' + p); }
+        },
+    }, 'units', { pollMs: 60000 });
     watch('de.bmw.infotainment.KombiIF', {
         statusRangeTankStatus: (v) => { fes('statusRangeTankStatus')(v); pickRanges(v); },
         // the cluster's own electric range (in this car's catalog), in the unit the cluster shows: miles on a car
@@ -254,8 +338,7 @@ function startData(ctx, opts) {
     }, 'power distribution', { pollMs: 15000 });
 
     /* ---------- the engine unit, the gearbox unit and the transfer case over UDS ---------- */
-    const bat = Object.assign({ hvV: [], hvI: [], soc: [] }, cfg.battery || {});
-    const dme = Object.assign({ ecu: 18 }, cfg.dme || {}), xcfg = Object.assign({ front: [], gearRatios: [] }, cfg.xdrive || {});
+    const dme = Object.assign({ ecu: 18 }, cfg.dme || {});
     const link = new Diag(ctx.signals, log);
     link.quiet = true;
     link.init();
@@ -272,94 +355,82 @@ function startData(ctx, opts) {
             if (ac !== null) put('boostActual', (ac - baro) / 100);
             return tg;
         }
-        if (k === 'lmv') { const v = await rd.value('lmvFront', xcfg.front); if (v !== null) put('lmvFront', v); return v; }
-        // the high-voltage battery (SME, ecu 7): its power from voltage x current, and its charge (eDrive Live's
-        // reads, confirmed on the X5 45e), so the apps don't depend on it sharing
-        if ((k === 'hv' || k === 'hvSoc') && (ice() || !batteryReads())) return null;   // a petrol or diesel car has no HV battery
-        if (k === 'hv') {
-            // the current every turn; the voltage (it moves slowly) every 2 s
-            if (!isNum(hvVolt) || Date.now() - hvVoltT > 2000) { const v = await rd.value('hvV', bat.hvV); if (v !== null) { hvVolt = v; hvVoltT = Date.now(); } }
-            if (!isNum(hvVolt)) return null;
-            const a = await rd.value('hvI', bat.hvI);
-            if (a !== null) put('hvKw', (bat.powerSign || -1) * hvVolt * a / 1000);
-            return a;
-        }
-        if (k === 'hvSoc') { const v = await rd.value('hvSoc', bat.soc); if (v !== null) put('hvSoc', v); return v; }
+        // (the high-voltage battery is eDrive Live's alone: its charge and power come from its shared file, below.
+        // Two apps asking the battery unit in turn left both without answers, eDrive Live showing 'NO REPLY'.)
         const v = await rd.value(k, dme[k]);
         if (v !== null) put(k === 'egs' ? 'gearbox' : k, v);
         return v;
     }
-    let slowAt = 0, hvVolt = null, hvVoltT = 0, queue = [];
+    let slowAt = 0, queue = [];
     /*
-     * One turn: the battery's current first (its power is the most watched reading: ~4 times a second), then
-     * one other reading, round-robin: what the layout wants, every DME reading every 10 s, the charge every 10 s.
+     * One turn: one reading, round-robin: what the layout wants, every DME reading every 10 s.
      * Only while shown: each read puts "Diagnostic mode active" on the cluster.
      */
     let lastPollErr = '';
     async function poll() {
-        const on = !opts || !opts.shown || opts.shown();
+        const on = active();
         const now = Date.now(), wantedNow = on && now - wantedT < 3000;
-        const usable = (k) => (k === 'lmv' ? xcfg.front.length : k === 'boostCtl' ? (dme.boostTarget || []).length
-            : k === 'hv' ? !ice() && batteryReads() && bat.hvV.length && bat.hvI.length : k === 'hvSoc' ? !ice() && batteryReads() && bat.soc.length : (dme[k] || []).length);
+        const usable = (k) => (k === 'boostCtl' ? (dme.boostTarget || []).length
+            : (dme[k] || []).length);
         const ready = (k) => !((fail[k] || 0) >= 3 && Date.now() - (tried[k] || 0) < 30000);
         if (!queue.length && on) {
-            queue = wantedNow ? wanted.filter((k) => DME_KEYS.indexOf(k) >= 0) : [];
-            if (wantedNow && now - slowAt > 10000) { slowAt = now; DME_KEYS.forEach((k) => { if (k !== 'lmv' && queue.indexOf(k) < 0) queue.push(k); }); }
-            if (now - (tried.hvSoc || 0) > 10000) queue.push('hvSoc');
+            /* With the engine off (on electricity) the engine unit's readings don't move: only the every-10 s round.
+             * Each read is a request through the car's gateway, the one eDrive Live's battery reads go through. */
+            const engineOff = car.data().engineOn === false;
+            queue = wantedNow && !engineOff ? wanted.filter((k) => DME_KEYS.indexOf(k) >= 0) : [];
+            if (wantedNow && now - slowAt > 10000) { slowAt = now; DME_KEYS.forEach((k) => { if (queue.indexOf(k) < 0) queue.push(k); }); }
             queue = queue.filter(usable);
         }
-        const turn = on ? ['hv'].filter(usable).concat(queue.length ? [queue.shift()] : []) : [];
+        const turn = on && queue.length ? [queue.shift()] : [];
+        let asked = 0;
         try {
             if (link.available) {
                 for (const k of turn) {
                     if (!ready(k)) continue;
+                    asked++;
                     tried[k] = Date.now();
                     const v = await readOne(k);
                     fail[k] = v === null ? (fail[k] || 0) + 1 : 0;
-                    // Auto: the battery unit answering says plug-in hybrid; never answering, while the engine unit
-                    // does on the same link (so not a link problem), a petrol or diesel car
-                    if (v !== null && k !== 'hv' && k !== 'hvSoc') dmeAnswered = true;
-                    if (k === 'hvSoc' && setting('vehicle') !== 'ice' && setting('vehicle') !== 'phev') {
-                        if (v !== null) detect('phev', 'its high-voltage battery unit answers');
-                        else if (fail[k] >= 3 && dmeAnswered && detected.vehicle !== 'phev') detect('ice', 'no high-voltage battery unit answers (the engine unit does)');
-                    }
+                    if (v !== null) dmeAnswered = true;
                 }
             }
         } catch (e) { const m = String(e); if (m !== lastPollErr) { lastPollErr = m; log.warn('diagnostic poll: ' + m); } }   // (once per distinct error)
-        timer = setTimeout(poll, turn.length ? 120 : 2000);
+        // the next reading soon, with a gap so the link isn't held; nothing asked, the link down or every reading
+        // resting after failures: no spinning, a look again soon
+        // (at most 4 a second: these share the diagnostic gateway with eDrive Live's battery reads, 10 a second)
+        timer = setTimeout(poll, !turn.length ? 2000 : 250);
     }
     timer = setTimeout(poll, 1500);
 
     /* ---------- eDrive Live's charge and power, asked for while shown ---------- */
-    const providers = startProviders(log);
-    // while shown, ask eDrive Live to share; otherwise let go at once (providers.js: Cluster Info's file)
-    setInterval(() => { if (opts && opts.shown && opts.shown()) providers.want({ power: true, values: ['soc', 'battery', 'oil'] }); else providers.release(); }, 1000);
-
-    /** The xDrive split: { rear %, from } from the car's own signal, else the transfer case's front torque
-     * against the gearbox output (engine torque x the gear's ratio), else none. */
-    /*
-     * The xDrive split: { rear %, frontNm, from }. From the car's own split signal when it has one; else the
-     * transfer case's front torque over UDS: clutch open (5 Nm or less) is all rear; engaged, the front axle's
-     * torque in Nm. (A percentage from it needs the whole drive torque, and on a plug-in hybrid the electric
-     * motor's share isn't read: the engine-only estimate gave false splits.) The front torque is smoothed, and
-     * the last reading held for HOLD_MS through a late read, so it doesn't flicker to '--'.
-     */
-    const HOLD_MS = 6000;
-    let lastSplit = null, frontAvg = null;
-    function split(d) {
-        if (d.demo) return { rear: d.splitRear, from: 'demo' };
-        let now = null;
-        if (fresh('splitRear', 10000)) now = { rear: x.splitRear, from: 'car' };
-        else if (fresh('lmvFront', 4000)) {
-            frontAvg = frontAvg === null ? x.lmvFront : frontAvg + (x.lmvFront - frontAvg) * 0.35;
-            now = frontAvg <= 5 ? { rear: 100, frontNm: 0, from: 'transfer case: clutch open' }
-                : { rear: null, frontNm: Math.round(frontAvg), from: 'transfer case: front torque' };
-        }
-        if (now) { lastSplit = { v: now, t: Date.now() }; return now; }
-        if (lastSplit && Date.now() - lastSplit.t < HOLD_MS) return lastSplit.v;
-        frontAvg = null;
-        return { rear: null, from: null };
-    }
+    const providers = startProviders(log, { onChange: () => fresh_() });
+    /* Auto vehicle: a plug-in hybrid by its drive modes (above), eDrive Live sharing its battery readings or the
+     * car giving an electric range; none of these in 90 s shown, while the engine unit answers (so the link is up),
+     * a petrol or diesel car. A later sign of a plug-in hybrid changes it back. */
+    /* The power gauges' ends: eDrive Live's (the battery's discharge and charge limits), the largest it has
+     * shared, rounded up (10 kW, 5 kW): a scale that holds still while the limits move with the cells'
+     * temperature and charge. */
+    const kwEnds = { out: null, in: null };
+    const endsOf = (p) => {
+        if (isNum(p.kwOut) && p.kwOut > 0) kwEnds.out = Math.max(kwEnds.out || 0, Math.ceil(p.kwOut / 10) * 10);
+        if (isNum(p.kwIn) && p.kwIn > 0) kwEnds.in = Math.max(kwEnds.in || 0, Math.ceil(p.kwIn / 5) * 5);
+        return kwEnds;
+    };
+    /* The battery's power between eDrive Live's readings (kwfuse.js): its readings fitted to the power at the wheels
+     * from the car's speed and acceleration, many times a second. Settings > kW: Fast (the default) or Readings only. */
+    let lastKwAt = null;
+    const fastKw = () => setting('kwFast') !== 'off';
+    let shownFor = 0;
+    const vehicleTimer = setInterval(() => {
+        if (setting('vehicle') === 'ice' || setting('vehicle') === 'phev') return;
+        const p = providers.readings();
+        if (providers.powerShared() || isNum(p.soc)) return detect('phev', 'eDrive Live shares its battery readings');
+        if (fresh('carErange', 120000) && x.carErange > 0) return detect('phev', 'the car gives an electric range');
+        if (opts && opts.shown && active()) shownFor += 5000;
+        if (!detected.vehicle && dmeAnswered && shownFor >= 90000) detect('ice', 'no drive modes, electric range or eDrive Live of a plug-in hybrid (the engine unit answers)');
+    }, 5000);
+    // while shown with the car on, ask eDrive Live to share; otherwise let go at once (providers.js: Cluster Info's file)
+    const wantTimer = setInterval(() => { if (opts && opts.shown && active()) providers.want({ power: true, values: ['soc', 'battery', 'oil'] }); else providers.release(); }, 1000);
 
     return {
         car,
@@ -367,12 +438,23 @@ function startData(ctx, opts) {
         data() {
             const d = car.data(), p = providers.readings();
             // ranges: an app that shares them first (eDrive Live), else the car's own signal
-            // the battery: eDrive Live's when it shares, else this app's own reads of the battery unit
-            const o = Object.assign({}, d, { mode: x.mode, soc: isNum(p.soc) ? p.soc : fresh('hvSoc', 30000) ? x.hvSoc : undefined,
-                kw: isNum(p.kw) ? p.kw : fresh('hvKw', 2000) ? x.hvKw : undefined, driveMode: x.driveMode,
+            // the battery: eDrive Live's (it alone reads the battery unit); its power between readings from the car's
+            // own speed and acceleration (kwfuse.js), with Settings > kW: Fast
+            const tNow = Date.now();
+            if (!d.demo) {
+                fuse.sample(tNow, { speed: d.speed, gLong: d.gLong, engineOn: d.engineOn });
+                // (a new reading: taken a little before eDrive Live wrote it)
+                if (isNum(p.kw) && isNum(p.kwAt) && p.kwAt !== lastKwAt) { lastKwAt = p.kwAt; fuse.measure(p.kwAt - 100, p.kw); }
+            }
+            const fz = !d.demo && fastKw() ? fuse.now(tNow) : null;
+            const o = Object.assign({}, d, { mode: x.mode, soc: isNum(p.soc) ? p.soc : undefined,
+                kw: fz ? fz.kw : isNum(p.kw) ? p.kw : undefined, kwRead: isNum(p.kw) ? p.kw : undefined, kwFused: !!(fz && fz.fused), kwModel: fz && fz.model ? fz.model : undefined, kwOut: endsOf(p).out || undefined, kwIn: kwEnds.in || undefined, driveMode: x.driveMode,
                 erange: isNum(p.erange) ? p.erange : fresh('carErange', 120000) ? x.carErange : undefined,
                 frange: isNum(p.frange) ? p.frange : fresh('carFrange', 120000) ? x.carFrange : undefined,
                 trange: fresh('carTrange', 120000) ? x.carTrange : undefined, fuelLevel: fresh('fuelLevel', 120000) ? x.fuelLevel : undefined });
+            // the tyres: { p: { FL.. } bar, t: { FL.. } C }, each fresh for a minute (read every 10 s)
+            o.tyres = { p: {}, t: {} };
+            ['FL', 'FR', 'RL', 'RR'].forEach((k) => { if (fresh('tyreP' + k, 60000)) o.tyres.p[k] = x['tyreP' + k]; if (fresh('tyreT' + k, 60000)) o.tyres.t[k] = x['tyreT' + k]; });
             ['steer', 'yaw', 'outside', 'gearbox', 'battTemp', 'battMin', 'battMax', 'pdDrive', 'pdClimate', 'pdSeats', 'iat', 'hpfp', 'lpfp', 'timing', 'boostTarget', 'boostActual']
                 .forEach((k) => { if (!d.demo && fresh(k, 60000)) o[k] = x[k]; });
             // boost: the engine unit's (fast, while a layout wants it), else the car's sport display signal
@@ -380,8 +462,6 @@ function startData(ctx, opts) {
             if (d.demo) Object.assign(o, demo(d));
             if (isNum(o.iat) && isNum(o.outside)) o.iatRise = o.iat - o.outside;
             if (isNum(o.battTemp) === false && p.battery !== undefined) o.battTemp = p.battery;
-            const sp = split(o);
-            o.splitRear = sp.rear; o.splitFrom = sp.from; o.splitFront = isNum(sp.rear) ? 100 - sp.rear : undefined; o.splitFrontNm = sp.frontNm;
             o.engineOn = isNum(o.rpm) ? o.rpm > 300 : undefined;
             // no electric range from the car or an app yet: an estimate from the charge and the range a full battery
             // gives (Settings > Electric range when full, miles), shown with '~'
@@ -394,16 +474,20 @@ function startData(ctx, opts) {
             o.fuelPct = isNum(o.fuelLevel) ? Math.max(0, Math.min(100, o.fuelLevel / tank * 100)) : undefined;
             if (o.engineOn === undefined && Date.now() - (x.at.engineState || 0) < 60000) o.engineOn = x.engineState === 'on';
             if (x.startWhy) o.startWhy = x.startWhy;
+            // the cruise control: on with a set speed (the head-up display's), off at 0
+            if (!d.demo && Date.now() - (x.at.cruiseSet || 0) < 10000) o.cruise = { on: x.cruiseSet > 0 && x.cruiseSet < 250, set: x.cruiseSet > 0 && x.cruiseSet < 250 ? x.cruiseSet : undefined };
             return o;
         },
         /** The page on screen needs these (data keys): read them fast. */
-        want(keys) { wanted = keys.map((k) => (k === 'boostTarget' || k === 'boostActual' ? 'boostCtl' : k === 'gearbox' ? 'egs' : k === 'splitRear' ? 'lmv' : k)); wantedT = Date.now(); },
-        status: () => Object.assign({ diag: link.available ? 'up' : 'down', providers: providers.list().join(', ') || 'none', raw }, status),
+        want(keys) { wanted = keys.map((k) => (k === 'boostTarget' || k === 'boostActual' ? 'boostCtl' : k === 'gearbox' ? 'egs' : k)); wantedT = Date.now(); },
+        status: () => Object.assign({ car: awake.why() + (awake.on() ? '' : ' - nothing asked of the car'), diag: link.available ? 'up' : 'down', providers: providers.list().join(', ') || 'none', raw, kwFit: fuse.fit() }, status),
         /** The vehicle in use: { vehicle 'phev' | 'ice', how: 'set' | 'found' | 'assumed', why }. */
         vehicle: () => ({ vehicle: vehicleNow(), how: setting('vehicle') === 'ice' || setting('vehicle') === 'phev' ? 'set' : detected.vehicle ? 'found' : 'assumed', why: detected.why }),
         /** fn() on each new reading (the car's speed and rpm samples, every changed reading). */
         onFresh(fn) { freshFns.push(fn); },
-        stop() { clearTimeout(timer); providers.stop(); },
+        /** The car's state (kit/awake.js): { on, parked, why }. */
+        awake: () => ({ on: awake.on(), parked: awake.parked(), why: awake.why() }),
+        stop() { clearTimeout(timer); clearInterval(wantTimer); clearInterval(vehicleTimer); providers.stop(); },
     };
 }
 
@@ -414,7 +498,8 @@ function demo(d) {
         outside: 9, gearbox: 72 + 4 * Math.sin(t / 50), iat: 34 + 6 * Math.sin(t / 20), hpfp: 50 + rpm / 40, lpfp: 5.2 + 0.2 * Math.sin(t),
         timing: 18 - rpm / 800, boostTarget: Math.max(0, (rpm - 1500) / 4000), boostActual: Math.max(0, (rpm - 1600) / 4100),
         battTemp: 27, battMin: 25, battMax: 29, soc: 64, kw: -12 + 25 * Math.sin(t / 7), pdDrive: 60, pdClimate: 25, pdSeats: 15,
-        splitRear: 62 + 25 * Math.sin(t / 3), erange: 29, frange: 520, fuelLevel: 38,
+        erange: 29, frange: 520, fuelLevel: 38,
+        tyres: { p: { FL: 2.48, FR: 2.50, RL: 2.62, RR: 2.60 }, t: { FL: 24, FR: 25, RL: 27, RR: 26 } },
     };
 }
 

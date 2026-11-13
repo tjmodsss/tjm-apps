@@ -8,7 +8,7 @@
  * on top.
  *
  * Readings (data.js, shared with Cluster Centre): speed, engine speed, gear, oil and coolant, torque and g
- * from the car (kit/car.js); the selector's S / M programme, outside, gearbox oil, the xDrive split, the
+ * from the car (kit/car.js); the selector's S / M programme, outside, gearbox oil, the
  * battery's temperature and the power distribution from the car's services; intake air, boost and fuel
  * pressures from the engine unit over UDS (only while a layout that shows them is up); the battery's charge
  * and power from eDrive Live; ranges from any app that shares them, until the car's own range signals are
@@ -25,6 +25,8 @@ const { byId } = require('./layouts');
 const { lookNow } = require('./themes');
 const { startData } = require('./data');
 const presence = require('./presence');
+const { startDap, DEMO: DAP_DEMO } = require('./dap');
+const { startMapWindow } = require('./map_window');
 const { findSignals } = require('./signal_finder');
 const logs = require('./logs');
 const attribution = require('./attribution');
@@ -55,13 +57,21 @@ mgu.run({
         const showing = () => settings.get('show') === 'on';
         // every reading (data.js, shared with Cluster Centre): the car's signals, the engine unit over UDS for
         // what a layout needs (layout.needs), eDrive Live's charge and power while shown
-        const D = startData(ctx, { shown: showing });
+        const D = startData(ctx, { shown: showing, tyres: true });
         const car = D.car;
-        const data = () => D.data();
+        // the driving assistant (dap.js), for the layouts that show it (layout.dap: Modern wide's road, Sport's
+        // cruise control): subscribed once one is first shown
+        let dap = null;
+        const dapWanted = () => showing() && !!byId(settings.get('layout')).dap;
+        const data = () => {
+            const d = D.data();
+            if (!dap && dapWanted() && !d.demo) dap = startDap(ctx, log);
+            d.dap = d.demo ? DAP_DEMO : dap ? dap.state() : null;
+            return d;
+        };
         const options = () => ({
-            speedUnit: settings.get('speedUnit'), tempUnit: settings.get('tempUnit'),
-            // Cluster Centre's pages sit in the same window as the map: the layout leaves it clear for either
-            centre: settings.get('centre') === 'pages' ? 'map' : settings.get('centre'),
+            speedUnit: settings.get('speedUnit'), tempUnit: settings.get('tempUnit'), torqueUnit: settings.get('torqueUnit'),
+            centre: settings.get('centre') === 'pages' ? 'map' : settings.get('centre'),   // (a saved 'pages', retired: Waze)
             redline: Number(settings.get('redline')) || 7000, rpmMax: Number(settings.get('rpmMax')) || 8000,
             boxClear: settings.get('boxClear') === 'on',
             cluster: settings.get('cluster') === 'm' ? 'm' : 'standard',
@@ -87,10 +97,11 @@ mgu.run({
         const look = () => lookNow(settings.get('look'), data());
         /* the renderer target: the panel (slot 0x203), where the HMI's own cluster screen goes down and the
          * KOMBI shows its fallback gear box */
-        let client = null;
         const start = () => startCluster({
-            client: (client = new ClusterRender('cluster_layouts')),
+            client: new ClusterRender('cluster_layouts'),
             layout: () => layout,
+            // (the glyphs: the layout's own family, M and Sport's wide one, else the bold)
+            font: () => layout.font || 'bold',
             options, log, live, data,
             theme: () => themeNow(),
             enabled: showing,
@@ -99,12 +110,16 @@ mgu.run({
             onFresh: D.onFresh,
         });
         let cluster = start();
+        const mapWindow = startMapWindow(log);
         let lastVehicle = null, lastModeGear = null;
         // the engine-unit readings the layout shows, read fast while it shows
         setInterval(() => {
             if (showing()) D.want((layout.needs || []).concat(require('./layout_common').focus.needs(options())));
-            // Cluster Centre steps aside while a layout shows, unless the layout's centre is set to its pages
-            if (cluster.status().shown) presence.mark('layouts', { centre: settings.get('centre') });
+            // Cluster Centre steps aside while a layout shows
+            if (cluster.status().shown) presence.mark('layouts', { centre: options().centre });
+            // the Waze centre: Waze on cluster draws its map over the layout, filling the window (map_window.js): the
+            // layout's own (M's and Sport's: where bimmer-lab's put it), else the native map area
+            mapWindow.set(cluster.status().shown && options().centre === 'map' ? (layout.mapWindow || require('./layout_common').MAP) : null);
             // the vehicle found (Settings > Vehicle: Auto): the layout redrawn for it once known
             const v = D.vehicle().vehicle;
             if (v !== lastVehicle) { if (lastVehicle) cluster.rebuild(); lastVehicle = v; }
@@ -119,7 +134,7 @@ mgu.run({
         settings.onChange((k) => {
             if (k === 'look' || k === 'background') return cluster.recolour();
             if (k === 'layout') layout = byId(settings.get('layout'));
-            if (['layout', 'centre', 'speedUnit', 'tempUnit', 'redline', 'rpmMax', 'boxClear', 'boxBezel', 'cluster', 'bottomStrip', 'vehicle', 'tankLitres', 'batteryReads'].indexOf(k) >= 0) cluster.rebuild();
+            if (['layout', 'centre', 'speedUnit', 'tempUnit', 'torqueUnit', 'redline', 'rpmMax', 'boxClear', 'boxBezel', 'cluster', 'bottomStrip', 'vehicle', 'tankLitres'].indexOf(k) >= 0) cluster.rebuild();
         });
 
         /* ---------- the car's range and charge signals, from its own catalog ---------- */
@@ -158,12 +173,28 @@ mgu.run({
                 ['cluster renderer status', squeeze(cluster.rendererStatus() || '(no answer yet)', full)],
                 ['data now', JSON.stringify(snap)],
                 ['raw signals', JSON.stringify(D.status().raw || {})],
+                ['driving assistant (Modern wide, Sport)', dap ? JSON.stringify(dap.status()) + '\nnow ' + JSON.stringify(dap.state()) : 'not started (Modern wide or Sport not shown yet)'],
                 ['vehicle', (() => { const v = D.vehicle(); return v.vehicle + ' (' + v.how + ': ' + v.why + ')'; })()],
                 ['data status', JSON.stringify(Object.assign({}, D.status(), { raw: undefined }))],
+                // the kW gauges' sources: each of the car's power signals (how often it came, its last value), its fit to
+                // eDrive Live's readings (theta: kW = theta . features; err: the average miss, kW) and the one shown
+                ['fast power (the kW gauges)', (() => {
+                    const f = D.status().kwFit || {}, ms = f.models || {};
+                    return ['shown now: ' + (d.kwModel || (isNum(d.kwRead) ? 'eDrive Live\'s reading as it is' : 'nothing')) + '   eDrive Live ' + (isNum(d.kwRead) ? d.kwRead.toFixed(1) + ' kW' : '--') + '   gauges ' + (isNum(d.kw) ? d.kw.toFixed(1) + ' kW' : '--')]
+                        .concat(Object.keys(ms).map((k) => k + ': ' + (ms[k].rate === null ? 'every car sample' : ms[k].rate + '/s') + ', fits ' + ms[k].fits + ', error ' + (ms[k].err === null ? '--' : ms[k].err + ' kW') + ', theta ' + JSON.stringify(ms[k].theta) + (ms[k].last !== null ? ', last ' + JSON.stringify(ms[k].last) : '')))
+                        .concat(['cruise (head-up display): ' + (d.cruise ? JSON.stringify(d.cruise) : 'nothing yet')]).join('\n');
+                })()],
                 // the car's own names for these (its service catalog): what to declare for the electric range
                 // and the local time
                 ['range and charge signals', sigList(found, n(40, 400))],
-                ['time and date signals', sigList(findSignals({ match: /time|date|uhrzeit|datum|zone|clock/i }), n(25, 300))],
+                // the battery's power as the car itself sends it (the head unit's live consumption and energy flow
+                // come from somewhere): every power, current, consumption and energy-flow field the catalog has, to pick
+                // one that updates without being asked (eDrive Live's diagnostic reads are a few a second)
+                ['power and consumption signals', sigList(findSignals({ match: /power|leistung|current|strom|ampere|voltage|spannung|consum|verbrauch|efficien|energ|flow|momentan|instant|eboost|traction|antrieb|hvs|highvoltage|electricmachine|emachine/i }), n(150, 1500))],
+                // the cruise control's: the driving assistant's view services send nothing on this car (Nov 9 2026,
+                // "seen" empty), so the catalog's other candidates, to pick from
+                ['cruise control signals', sigList(findSignals({ match: /cruise|tempomat|geschwindigkeitsregel|wunschgeschw|speed.?limit|limiter|set.?speed|target.?speed|abstand|distance.?control|longitudinal.?(control|guid|function|assist)|\bacc\b|acc[A-Z_]|ACC|DCC|FGR/ }), n(30, 300))],
+                ['time and date signals', sigList(findSignals({ match: /time|date|uhrzeit|datum|zone|clock/i }), n(10, 300))],
                 ['cluster-render log', logs.tail(logs.RENDER_LOG, n(50, 1500))],
                 ['this app\'s log', logs.tail(path.join(ctx.dataDir || '.', 'cluster_layouts.log'), n(30, 400))],
                 ['Cluster Centre log', logs.siblingLog(ctx.dataDir || '.', 'cluster_centre', n(20, 300))],
@@ -241,7 +272,7 @@ mgu.run({
                     + '   ·   gear ' + layout.gearText(d) + '   ·   oil ' + tmp(d.oil) + '   ·   coolant ' + tmp(d.coolant) + '   ·   outside ' + tmp(d.outside)],
                 ['Shared by apps', D.status().providers + '   ·   diagnostic link ' + D.status().diag + '   ·   charge ' + (isNum(d.soc) ? Math.round(d.soc) + '%' : '--') + '   ·   power ' + (isNum(d.kw) ? d.kw.toFixed(1) + ' kW' : '--')],
                 ['Drive mode (car)', (d.driveMode || '-') + '   ·   raw: ' + rawOf('statusFESVehicleDynamicSwitchHMI') + '  ' + rawOf('statusSwitchDriveDynamicSport2')],
-                ['Range (car)', 'fuel ' + (isNum(d.frange) ? Math.round(d.frange) : '--') + '  electric ' + (isNum(d.erange) ? Math.round(d.erange) : '--') + '  xDrive ' + (isNum(d.splitRear) ? Math.round(d.splitRear) + '% rear' : '--') + '   ·   raw: ' + rawOf('statusRangeTankStatus')],
+                ['Range (car)', 'fuel ' + (isNum(d.frange) ? Math.round(d.frange) : '--') + '  electric ' + (isNum(d.erange) ? Math.round(d.erange) : '--') + '   ·   raw: ' + rawOf('statusRangeTankStatus')],
             ];
             cv.text('Cluster Layouts ' + ((ctx.spec && ctx.spec.version) || ''), 48, 80, 44, t.text, { font: 'bold', literal: true });
             lines.forEach(([k, v], i) => {

@@ -50,12 +50,17 @@ function tempArc(key, x, y, which, redC, o) {
 function dialSet(o, which, cx, size, cy) {
     cy = cy === undefined ? CY : cy;
     const k = size / 640, s = which === 'speed' ? C.speedScale(o) : C.rpmScale(o);
+    // km/h: 14 numerals, most of three figures (mph: 9); at mph's size 100-160 ran together, so smaller and further out
+    const dense = which === 'speed' && o.speedUnit === 'kmh';
     const parts = [{
         key: which, kind: 'dial', x: cx - size / 2, y: cy - size / 2, w: size, h: size,
-        params: { u_scale: [s.max, s.major, s.minor, which === 'speed' ? s.max + 1 : s.red], u_arc: [-128, 128, Math.round(40 * k + 2), 196 * k], u_needle_dim: [276 * k, 30 * k, 12 * k, 4], u_look: [0.35, 0.25, 1, 62 * k], u_look2: [7, k, 0.45, 0.6] },
+        params: { u_scale: [s.max, s.major, s.minor, which === 'speed' ? s.max + 1 : s.red], u_arc: [-128, 128, Math.round((dense ? 29 : 40) * k + 2), (dense ? 206 : 196) * k], u_needle_dim: [276 * k, 30 * k, 12 * k, 4], u_look: [0.35, 0.25, 1, 62 * k], u_look2: [7, k, 0.45, 0.6] },
         colors: dialColours, max: s.max, sweep: true,
-        value: which === 'speed' ? (d) => (C.isNum(d.speed) ? C.speedIn(o, d.speed) : 0) : (d) => (C.isNum(d.rpm) ? d.rpm / 1000 : 0),
-    }, C.text(which + 'Unit', cx - 120, cy + Math.round(86 * k), 240, Math.round(20 * k), which === 'speed' ? C.speedUnit(o) : 'X1000 RPM', lbl, { tracking: 0.14 })];
+        value: which === 'speed' ? (d) => (C.isNum(d.speed) ? C.speedIn(o, d.speed) : 0) : C.tachValue(o), range: which === 'speed' ? undefined : C.tachRange(o, s),
+        dyn: which === 'speed' ? undefined : C.tachDyn(o, s, s.red),
+    }, C.text(which + 'Unit', cx - 120, cy + Math.round(86 * k), 240, Math.round(20 * k), which === 'speed' ? C.speedUnit(o) : (d) => (C.electric(o, d) ? C.kwText(d).toUpperCase() : 'X1000 RPM'), lbl, { tracking: 0.14 })];
+    // the tach: a small power gauge across its top (the battery's draw right, recuperation left), on a plug-in hybrid
+    if (which === 'rpm' && !C.engineFocus(o) && o.vehicle !== 'ice' && !C.mCar(o)) parts.push(...C.powerMeter(cx, size, cy, lbl, o));   // (an M car's boxes cover it)
     const y = cy + Math.round(130 * k), w = Math.round(220 * k), h = Math.round(36 * k);
     if (which === 'speed') return parts.concat(C.reading('fuel', cx - w / 2, y, w, h, (d) => C.distText(o, d.frange), 'FUEL RANGE', txt, lbl));
     // the electric range and charge, or (Show: Engine) the boost and timing
@@ -83,9 +88,9 @@ module.exports = {
             // the free corner above the box, the temperatures under the map above the warning lights
             const top = C.MAP.y, bot = C.MAP.y + C.MAP.h;
             return C.aroundMap().map((r, i) => C.flat('bg' + i, r.x, r.y, r.w, r.h, 'bg')).concat(
-                dialSet(o, 'speed', 208, 404, 360), dialSet(o, 'rpm', 1792, 256, 500),
+                dialSet(o, 'speed', 208, 404, 360), C.strip(o) ? dialSet(o, 'rpm', 1712, 404, 360) : dialSet(o, 'rpm', 1792, 256, 500),
                 [C.text('clock', 520, top - 78, 200, 34, C.clock, txt), C.text('outside', 1200, top - 78, 200, 34, (d) => C.outsideText(o, d.outside), txt)],
-                selector(1530, 128, 26, 44), [gear(1520, 156, 230, 66),
+                C.strip(o) ? [] : selector(1530, 128, 26, 44), C.strip(o) ? [] : [gear(1520, 156, 230, 66),
                     C.text('speedDigits', 1520, 224, 230, 32, (d) => C.speedText(o, d) + ' ' + C.speedUnit(o), txt)],
                 C.readingUp('oilR', 600, bot + 2, 200, 30, (d) => C.tempText(o, d.oil), 'OIL', txt, lbl),
                 C.readingUp('coolantR', 1120, bot + 2, 200, 30, (d) => C.tempText(o, d.coolant), 'COOLANT', txt, lbl),
@@ -98,7 +103,7 @@ module.exports = {
             const keep = (list) => list.filter((p) => !/^(fuel|elec|soc)(Lbl)?$/.test(p.key));
             const ty = scy + Math.round(120 * kk);
             return [C.flat('bg', 0, 0, 1920, 720, 'bg')].concat(keep(dialSet(o, 'speed', 452, SS, scy)), keep(dialSet(o, 'rpm', 1468, SS, scy)),
-                tempArc('coolant', 452 - 100, ty, 'coolant', 118, o), tempArc('oil', 1468 - 100, ty, 'oil', 130, o), card(o, 830, 134, 260, 470));
+                tempArc('coolant', 452 - 100, ty, 'coolant', 118, o), tempArc('oil', 1468 - 100, ty, 'oil', 130, o), card(o, 830, 164, 260, 440, true));   // (its top clear of the camera's cowl: a photo of the car)
         }
         const S = 520, cy = 392, L = 300;
         const stock = o.centre === 'stock', R = stock ? 1256 : 1120, SR = stock ? 296 : S;
@@ -117,7 +122,22 @@ module.exports = {
 
 /** The card between the dials: the time and outside temperature, the selector, the gear, the digital speed and
  * the battery's power. */
-function card(o, X, Y, W, H) {
+function card(o, X, Y, W, H, stripped) {
+    if (stripped) {
+        // over the car's own strip (it shows the gear and the drive mode): the digital speed large in the gear's
+        // place, the battery's power under a rule
+        return [
+            { key: 'card', kind: 'panel', x: X, y: Y, w: W, h: H, params: { u_box: [30, 2, 1, 1] }, colors: (t) => ({ top: t.cardTop, bottom: t.cardBottom, border: t.cardEdge }) },
+            C.text('clock', X + 20, Y + 18, (W - 42) / 2, 30, C.clock, txt, { align: 0 }),
+            C.text('outside', X + W / 2 + 1, Y + 18, (W - 42) / 2, 30, (d) => C.outsideText(o, d.outside), txt, { align: 1 }),
+            C.flat('rule0', X + 30, Y + 64, W - 60, 2, 'cardEdge'),
+            C.text('speedDigits', X, Y + 104, W, 140, (d) => C.speedText(o, d), txt),
+            C.text('speedDigitsUnit', X, Y + 254, W, 22, C.speedUnit(o), lbl, { tracking: 0.12 }),
+            C.flat('rule', X + 30, Y + 312, W - 60, 2, 'cardEdge'),
+            C.text('kwNow', X, Y + 338, W, 54, C.focus.power(o), C.engineFocus(o) ? txt : evTxt),
+            C.text('kwNowLbl', X, Y + 400, W, 18, C.focus.powerLabel(o, true), lbl, { tracking: 0.1 }),
+        ];
+    }
     return [
         { key: 'card', kind: 'panel', x: X, y: Y, w: W, h: H, params: { u_box: [30, 2, 1, 1] }, colors: (t) => ({ top: t.cardTop, bottom: t.cardBottom, border: t.cardEdge }) },
         C.text('clock', X + 20, Y + 18, (W - 42) / 2, 30, C.clock, txt, { align: 0 }),

@@ -4,7 +4,7 @@
  *
  * The stock speedometer, rev counter and warning lights stay; the centre (the map area, slot 0x100, 1088x480,
  * taken over from the stock map in Map view as Waze on cluster does) shows one of the pages chosen in the
- * settings (pages.js): temperatures, fuel and boost, warm-up, turbo cool-down, the xDrive split, eDrive, the
+ * settings (pages.js): temperatures, fuel and boost, warm-up, turbo cool-down, eDrive, the
  * engine on / off, steering, the 0-60 timer and two custom pages. Every page is built once on the cluster
  * (engine.js groups); changing page sends only which group shows. A shift light with the gear sits at the top.
  *
@@ -52,7 +52,7 @@ function half(d, w, h) {
 }
 /** A cheap fingerprint of the preview's pixels (every 997th byte), so an unchanged picture is not sent again. */
 function previewSig(d) { let h = 0; for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) | 0; return d.length + ':' + h; }
-const PAGE_IDS = ['temps', 'fuel', 'warmup', 'cooldown', 'xdrive', 'edrive', 'engine', 'steering', 'timer', 'custom1', 'custom2'];
+const PAGE_IDS = ['temps', 'fuel', 'warmup', 'cooldown', 'edrive', 'engine', 'steering', 'timer', 'custom1', 'custom2'];
 const FIND = [
     { name: 'steering and yaw', match: /lenkwinkel|steer|yaw|gier|drehrate/i },
     { name: 'why the engine started', match: /startgrund|startreason|enginestart|combustion|verbrennungsmotor|engineon|motorstart|startrequest/i },
@@ -94,12 +94,10 @@ mgu.run({
         /* ---------- options for the pages ---------- */
         // (a petrol or diesel car, Settings > Vehicle: ICE, has no eDrive page)
         const enabled = () => PAGE_IDS.filter((id) => settings.get('page_' + id) === 'on' && !(id === 'edrive' && data.vehicle().vehicle === 'ice'));
-        // inside a Cluster Layouts layout set to show these pages: the layout covers the stock readouts round
-        // the centre, so the page takes the whole window
-        const inLayout = () => presence.active('layouts') && presence.info('layouts').centre === 'pages';
-        const blockedByLayout = () => presence.active('layouts') && !inLayout();
+        // a Cluster Layouts layout covers the whole panel: the pages wait while one shows
+        const blockedByLayout = () => presence.active('layouts');
         const options = () => ({
-            look: settings.get('look'), fit: inLayout() ? 'full' : settings.get('fit'), pages: enabled(), style: settings.get('style'), accent: settings.get('accent'), size: settings.get('size'),
+            look: settings.get('look'), fit: settings.get('fit'), pages: enabled(), style: settings.get('style'), accent: settings.get('accent'), size: settings.get('size'),
             units: { temp: settings.get('tempUnit'), press: settings.get('pressUnit'), speed: settings.get('speedUnit'), torque: settings.get('torqueUnit') },
             warn: { oilHigh: num('oilHigh'), coolantHigh: num('coolantHigh'), iatHigh: num('iatHigh'), gearboxHigh: num('gearboxHigh'), battTempHigh: num('battTempHigh'), lpfpLow: num('lpfpLow') },
             shift: { on: settings.get('shift') !== 'off', from: num('shiftFrom', 4000), at: num('shiftAt', 6200) },
@@ -117,7 +115,7 @@ mgu.run({
             font: () => (settings.get('look') === 'modern' ? 'bold' : 'light'),
             live: () => data.car.data().demo || data.car.subs.some((s) => s.available) || data.car.lastCar > 0,
             // not while Cluster Layouts covers the whole panel (the pages would be hidden under it and take the
-            // renderer's layers the layout needs), unless its centre is set to these pages
+            // renderer's layers the layout needs)
             enabled: () => showing() && !!page && !blockedByLayout(),
             sweep: () => false,
             group: page,
@@ -130,10 +128,7 @@ mgu.run({
         }
         function next() { const list = enabled(); if (!list.length) { page = null; return; } goTo(list[(list.indexOf(page) + 1) % list.length]); }
         if (page) goTo(page);
-        let wasInLayout = inLayout();
         setInterval(() => {
-            // into a layout's centre or out of it: the page built again at its size there
-            if (inLayout() !== wasInLayout) { wasInLayout = inLayout(); log.info('in a layout\'s centre: ' + wasInLayout); rebuild(); }
             const r = num('rotate', 0);
             if (r > 0 && Date.now() - pageAt >= r * 1000) next();
             const pg = PAGES[page];

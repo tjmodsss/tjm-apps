@@ -15,7 +15,7 @@ const path = require('path');
 const mgu = require('./kit/mgu');
 const CAT = require('./catalog');
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.3';
 const W = 1600, H = 520;
 const ROWS = 9;
 // MGU_EXPLORER_ROOT: a folder standing in for / (tools/screens.js on a PC)

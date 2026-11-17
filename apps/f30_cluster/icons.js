@@ -40,6 +40,10 @@ const ICONS = {
     oilcan: (x, y) => Math.min(seg(x, y, 0.2, 0.62, 0.6, 0.62) - 0.12, seg(x, y, 0.6, 0.58, 0.9, 0.44) - 0.04, disc(x, y, 0.92, 0.66, 0.05), seg(x, y, 0.3, 0.46, 0.3, 0.34) - 0.035, seg(x, y, 0.22, 0.34, 0.38, 0.34) - 0.04),
 };
 
+// strip integration (the owner's decision 6, 2026-11-16): package P's pictograms - our own drawings after ISO 2575 /
+// UN R121, MIT (design/strip/pictograms/PROVENANCE.md) - join these: cc_warn / cc_info are our message line's marker
+Object.assign(ICONS, require('./strip_icons').ICONS);
+
 function paintIcon(name, w, h, color) {
     const f = ICONS[name], out = Buffer.alloc(w * h * 4, 0);
     if (!f) return out;

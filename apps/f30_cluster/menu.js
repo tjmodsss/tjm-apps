@@ -7,9 +7,10 @@
  *   NOW_GFX      graphic   the picture of the theme showing (previews.js, pushed as a PNG like a canvas screen's)
  *   NOW          tworow    its name / tag line and which drive mode picked it; a press opens the gallery (or takes
  *                          the screen back while the other app has it)
- *   SET_BYMODE, SET_HUDLAYOUT, SET_INCOMFORT, SET_INSPORT, SET_INECO   the kit's own rows, placed up here (app.json
- *                          items ["setting", key]); the three drive-mode rows hidden while byMode is off
- *                          (config.menu.hideModeRows)
+ *   SET_BYMODE, SET_HUDLAYOUT, SET_G20, SET_INCOMFORT, SET_INSPORT, SET_INECO   the kit's own rows, placed up here
+ *                          (app.json items ["setting", key]); the three drive-mode rows hidden while byMode is off
+ *                          (config.menu.hideModeRows), and in the Settings list SET_BOTTOMROW hidden while the G20
+ *                          toggle is off (config.menu.hideRowUnlessG20)
  *   STATUS, STATUS2  text  on / off and why, the drive mode seen, the own-row line, problems (from hud.js)
  *   BTN_GALLERY  button    opens the drawn gallery (gallery.js, canvas screen GALLERY)
  *   ...the other settings (the kit's)
@@ -24,19 +25,25 @@
  */
 const { Canvas } = require('./kit/canvas');
 const previews = require('./previews');
+const HudApp = require('./hud');
 
-const LOOK_KEYS = ['hudLayout', 'inComfort', 'inSport', 'inEco'];
+const LOOK_KEYS = ['hudLayout', 'inComfort', 'inSport', 'inEco', 'g20'];
 const MODE_KEY = { comfort: 'inComfort', sport: 'inSport', eco: 'inEco' };
 const MODE_NAME = { comfort: 'Comfort', sport: 'Sport', eco: 'Eco Pro' };
 const MODE_ROWS = ['SET_INCOMFORT', 'SET_INSPORT', 'SET_INECO'];
+// the one bottom-row setting's row, hidden while the G20 toggle is off (config.menu.hideRowUnlessG20): with G20 off
+// our own background covers BMW's row, so there is nothing to choose
+const ROW_ROW = 'SET_' + HudApp.ROW_KEY.toUpperCase();
 const NOTE_MS = 5 * 60 * 1000;          // how long STATUS2 says the other app was turned off
 const PIC_BG = '#05070a';
 
-/** A layout's short name: "Off (BMW's own cluster)" -> "BMW's own cluster". */
+/** A layout's short name: "Off (BMW's own cluster)" -> "BMW's own cluster". A see-through layout file is named by its
+ *  theme plus " + G20" ("6WB Comfort + G20"), since "+ G20" is a toggle and no longer a theme of its own. */
 function layoutName(settings, v) {
     if (v === 'off') return "BMW's own cluster";
-    const s = settings.item('hudLayout'), o = s && (s.options || []).find((x) => x[0] === v);
-    return o ? o[1] : String(v);
+    const theme = HudApp.themeOf(v);
+    const s = settings.item('hudLayout'), o = s && (s.options || []).find((x) => x[0] === theme);
+    return (o ? o[1] : String(theme)) + (theme !== v ? ' + G20' : '');
 }
 /** The setting a theme picked in the gallery goes to: the drive mode's own while the theme changes with it. */
 function lookKey(hud) {
@@ -59,6 +66,8 @@ class Menu {
         const mc = (ctx.spec.config && ctx.spec.config.menu) || {};
         this.hideModeRows = mc.hideModeRows !== false;
         this.modeRowsOn = null;
+        this.hideRowUnlessG20 = mc.hideRowUnlessG20 !== false;
+        this.rowRowOn = null;
     }
 
     guard(what, fn) {
@@ -84,13 +93,16 @@ class Menu {
         ctx.settings.onChange((key) => this.guard('setting ' + key, () => {
             if (LOOK_KEYS.indexOf(key) >= 0 || key === 'byMode') this.takeScreen();
             if (key === 'byMode') this.modeRows(false);
+            if (key === 'g20') this.rowRow(false);
             this.soon();
         }));
         this.hud.onStatus(() => this.soon());
         ui.onVisible((name, on) => this.guard('visible', () => {
+            // the bottom-row setting's row lives in the Settings list, so it is written again when THAT opens
+            if (name === 'SETTINGS' && on) { this.rowRowOn = null; this.rowRow(false); return; }
             if (name !== 'MAIN' || !on) return;
             // the HMI builds the screen afresh: everything again (the kit drops its "same image" memory itself)
-            this.sent = Object.create(null); this.picShown = null; this.modeRowsOn = null;
+            this.sent = Object.create(null); this.picShown = null; this.modeRowsOn = null; this.rowRowOn = null;
             this.soon(0);
         }));
         this.refresh();
@@ -116,6 +128,7 @@ class Menu {
     refresh() {
         this.guard('refresh', () => {
             this.modeRows(false);
+            this.rowRow(false);
             const hud = this.hud, settings = this.ctx.settings, name = shownName(hud);
             const yielded = !!(hud.screen && hud.screen.yielded);
             this.cells('NOW', {
@@ -176,6 +189,17 @@ class Menu {
         MODE_ROWS.forEach((n) => { if (this.has(n)) this.ui.visible(n, on); });
     }
 
+    /** "Bottom row while G20 shows" only while the G20 toggle is on (config.menu.hideRowUnlessG20): with it off our own
+     *  background covers BMW's row, so the row is always ours and there is nothing to pick (hud.js _own). If the HMI
+     *  ignores Visible on a list row (unverified on the car, docs/UI-NATIVE-REPORT.md), the row simply stays visible
+     *  and is inert - nothing breaks either way. */
+    rowRow(force) {
+        const on = !this.hideRowUnlessG20 || this.hud.setting('g20') === true;
+        if (!force && on === this.rowRowOn) return;
+        this.rowRowOn = on;
+        if (this.has(ROW_ROW)) this.ui.visible(ROW_ROW, on);
+    }
+
     text(name, s) {
         s = String(s || '');
         if (this.sent[name] === s || !this.has(name)) return;
@@ -212,4 +236,5 @@ Menu.MODE_NAME = MODE_NAME;
 Menu.layoutName = layoutName;
 Menu.lookKey = lookKey;
 Menu.shownName = shownName;
+Menu.themeOf = HudApp.themeOf;      // a see-through layout file -> the theme the gallery's cards show
 module.exports = Menu;

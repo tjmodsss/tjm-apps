@@ -21,7 +21,6 @@ const TYPES = {
     arc: ['signal', 'min', 'max'],
     revbar: ['barH'],
     lights: [],
-    badge: ['text', 'font', 'tone'],
     fill: [],
     box: [],
     grid: [],

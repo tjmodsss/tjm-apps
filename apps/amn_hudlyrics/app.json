@@ -2,7 +2,7 @@
   "id": "amn_hudlyrics",
   "title": "TJM HUD Lyrics",
   "description": "Synced lyrics for the song playing over CarPlay (Apple Music, Spotify...), one line at a time in the head-up display, and in Sport, Sport+ and Sport Individual a rev tach in their place: Redline's Ramp layout (after the G80/G82 M3 and M4's HUD), with the shift lights, gear, D / S / M and the readouts you pick (oil, gearbox and water temperatures, and the cold-engine rev limit, which also brings the shift lights down while the oil is cold); back to the lyrics in Comfort, Eco Pro and Adaptive. The centre screen shows the song, the lyrics as they are sung, and a status row that says what each part is doing. It starts with the car and runs in the background. The lyrics on the HUD are experimental and off until you switch them on in Settings; they hide during route guidance and when a song has no synced lyrics. Read-only toward the car (the gearbox temperature is read from the gearbox unit with read-only diagnostic requests, as Redline does). Lyrics from LRCLIB (lrclib.net), its only internet host, through the Store's uplink. Needs the Cluster renderer tool from the Store.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "vendor": "TJM",
   "mguAppStartType": "autostart",
   "loggingId": "OB2F",
@@ -72,7 +72,8 @@
           "BTN_SETTINGS",
           "Settings"
         ]
-      ]
+      ],
+      "fullscreen": true
     }
   ],
   "settings": [
@@ -186,6 +187,78 @@
       "label": "Sport HUD: cold-engine rev limit",
       "type": "bool",
       "default": true
+    },
+    {
+      "key": "sportSize",
+      "label": "Sport HUD: size",
+      "type": "number",
+      "unit": "%",
+      "default": 100,
+      "steps": [
+        60,
+        70,
+        80,
+        90,
+        100,
+        110,
+        120,
+        130
+      ]
+    },
+    {
+      "key": "sportX",
+      "label": "Sport HUD: left (-) / right (+)",
+      "type": "number",
+      "unit": "px",
+      "default": -40,
+      "steps": [
+        -160,
+        -140,
+        -120,
+        -100,
+        -80,
+        -60,
+        -40,
+        -20,
+        0,
+        20,
+        40,
+        60,
+        80,
+        100,
+        120,
+        140,
+        160,
+        180,
+        200
+      ]
+    },
+    {
+      "key": "sportY",
+      "label": "Sport HUD: up (-) / down (+)",
+      "type": "number",
+      "unit": "px",
+      "default": 50,
+      "steps": [
+        -80,
+        -60,
+        -40,
+        -20,
+        0,
+        10,
+        20,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        100,
+        120,
+        140,
+        160,
+        180
+      ]
     },
     {
       "key": "coldGuard",

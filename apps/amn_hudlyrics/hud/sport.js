@@ -86,7 +86,23 @@ if (!Canvas.prototype.fill) {
 const Draw = require('./hud-draw');
 
 const IW = Draw.IW, IH = Draw.IH;                 // 400 x 130
-const PLACE = { x: 200, y: 140 };                 // Redline's tach at 100 % in the ID7 HUD scene (800 x 480)
+const PLACE = { x: 200, y: 140 };                 // Redline's tach at 100 % and Position 0 in the ID7 HUD scene (800 x 480)
+const SCENE_W = 800, SCENE_H = 480;
+const clampN = (x, a, b) => (x < a ? a : x > b ? b : x);
+/**
+ * 0.6.1: where the tach shows, from Settings "Sport HUD: size / left-right / up-down" - Redline's placeOf() (size 40-140 %,
+ * x -120..280, y -120..220 from x 200, y 140). The defaults, x -40 and y +50, put it in the middle of the part of the glass
+ * the driver sees (x 120..605, y 100..378; the drawing itself sits 32..394 of its 400 px, so Redline's 0 reads right of
+ * centre) and low, just above BMW's limit sign and speed (y 320 on, x 116..352).
+ */
+function placeOf(settings) {
+    const num = (k, d) => { const v = Number(settings.get(k)); return isFinite(v) && settings.get(k) !== undefined && settings.get(k) !== null ? v : d; };
+    const k = clampN(num('sportSize', 100), 40, 140) / 100;
+    const w = Math.round(IW * k), h = Math.round(IH * k);
+    const x = Math.round((SCENE_W - IW) / 2) + Math.round((IW - w) / 2) + clampN(num('sportX', -40), -200, 280);
+    const y = PLACE.y + clampN(num('sportY', 50), -120, 220);
+    return { x: clampN(x, 0, SCENE_W - w), y: clampN(y, 0, SCENE_H - h), w: w, h: h };
+}
 const FPS = 20, BLINK_MS = 100, RECONNECT_MS = 8000, LOAD_RETRY_MS = 30000, MODE_HOLD_MS = 600;
 const SPAN = 1500;                                // the lights count in over this many rpm before the shift point
 const isNum = (x) => typeof x === 'number' && isFinite(x);
@@ -203,6 +219,19 @@ class SportHud {
         return { kind: 'on', text: pre + 'Showing  ·  ' + this.sent + ' frames  ·  HUD ' + (this.tText || 'no state yet') };
     }
     demo(ms) { this.test = Date.now() + (ms || 8000); this.testAt = Date.now(); }
+    /** 0.7.0: the readouts as items ({ label, value, tone }), for the centre screen's tiles. */
+    items() { return (this._frameData(Date.now()).readouts || []).slice(); }
+    /** 0.7.0: the tach as the HUD draws it now (IW x IH), made opaque over black, for the centre screen's preview. */
+    preview() {
+        const f = this._frameData(Date.now());
+        f.blink = true;
+        const cv = new Canvas(IW, IH);
+        Draw.drawHud(cv, f);
+        const d = cv.d;
+        for (let p = 0; p < d.length; p += 4) { const a = d[p + 3] / 255; d[p] = d[p] * a; d[p + 1] = d[p + 1] * a; d[p + 2] = d[p + 2] * a; d[p + 3] = 255; }
+        return cv;
+    }
+    driveMode() { return this.mode; }
 
     /** Called often by main.js: starts / stops the layer and draws. Returns wants(). */
     tick() {
@@ -287,13 +316,17 @@ class SportHud {
             if (this.cr && Date.now() - this.downAt >= RECONNECT_MS) { this.log.info('sport hud: reconnecting'); this.close(); }
             return;
         }
+        // 0.6.1: a new size or position from Settings moves the tach at once (a new layer in the new place)
+        const r = placeOf(this.settings), pk = [r.x, r.y, r.w, r.h].join(',');
+        if (this.ref && pk !== this.placeKey) { try { this.cr.drop(this.ref); } catch (e) { /* gone */ } this.ref = 0; }
         if (!this.ref) {
-            // 0.5.1: Redline's own tach layer (hud.js makeLayer): class overlay, z 0, bilinear
-            this.ref = this.cr.image({ target: 'hud', klass: 'overlay', z: 0, x: PLACE.x, y: PLACE.y, w: IW, h: IH, iw: IW, ih: IH, fps: FPS, sampling: 'bilinear' });
+            // 0.5.1: Redline's own tach layer (hud.js makeLayer): class overlay, z 0, bilinear; drawn 400 x 130, shown w x h
+            this.placeKey = pk;
+            this.ref = this.cr.image({ target: 'hud', klass: 'overlay', z: 0, x: r.x, y: r.y, w: r.w, h: r.h, iw: IW, ih: IH, fps: FPS, sampling: 'bilinear' });
             this.lText = 'made'; this.lState = '';
             if (!this.ref) { this.log.warn('sport hud: layer refused by the client'); return; }
             this.first = true; this.lastKey = '';
-            this.log.info('sport hud: layer ' + IW + 'x' + IH + ' at ' + PLACE.x + ',' + PLACE.y);
+            this.log.info('sport hud: layer ' + r.w + 'x' + r.h + ' at ' + r.x + ',' + r.y);
         }
         if (this.paused()) { this.first = true; return; }        // behind BMW's own content
         const now = Date.now(), f = this._frameData(now);
@@ -321,4 +354,4 @@ class SportHud {
     }
 }
 
-module.exports = { SportHud, modeOf, IW, IH };
+module.exports = { SportHud, modeOf, placeOf, IW, IH };

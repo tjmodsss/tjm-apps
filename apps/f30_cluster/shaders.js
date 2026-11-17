@@ -1050,9 +1050,24 @@ void main() {
 }
 `;
 
-// 0.7.12: 0.7.11's night looks (nightLook(), u_nk0..2 in WBDIAL, WBBACK and WBSIGN) are taken out: with them the
-// KOMBI's display service reset ~2.3 s after every 6WB scene was mapped (docs/CAR-SNAPSHOT-2026-11-15.md). The code is
-// in git at 0.7.11 (commit 0aeda9a) for when they come back, tested on the car one shader at a time.
+// 2026-11-14: the night looks ("nightLook", hud.js NIGHT_LOOKS) as one colour transform at the very end of WBDIAL and
+// WBBACK, so the baked static stacks (hud/scene) are recoloured on the GPU, live, with no second set of textures (16 MiB
+// pixel memory). A colour splits into its grey part w = min(r, g, b) and what is left over (c - w: the red of the needle,
+// the blue of the floor); u_nk0..2 are the output's rows: (red's, green's, blue's image, then the white's image). The
+// identity (1 0 0 1, 0 1 0 1, 0 0 1 1) leaves every colour as it is. hud.js sends it always (an unset vec4 is 0: black).
+// 2026-11-16 (the owner: "the night themes in Sport and Eco must go"): "#if NIGHT" is resolved in JS like STYLE
+// (compact()); NIGHT 0 (hud.js, a 6WB Sport / Eco Pro layout) leaves u_nk0..2 and nightLook() out of the source and
+// compact() unwraps every nightLook(x) call to x, so a day-only layer's shader is the smaller one, not a switched-off one.
+const NIGHT_GLSL = `#if NIGHT
+uniform vec4 u_nk0;
+uniform vec4 u_nk1;
+uniform vec4 u_nk2;
+vec3 nightLook(vec3 c) {
+    float w = min(c.r, min(c.g, c.b));
+    vec4 v = vec4(c - vec3(w), w);
+    return vec3(dot(u_nk0, v), dot(u_nk1, v), dot(u_nk2, v));
+}
+#endif`;
 
 const WBDIAL = `// 6WB-style round gauges for a cluster-render "effect" layer (GLSL ES 1.00): our own drawing, traced by eye off
 // photos of BMW's F-series multifunctional display (no BMW artwork). One shader, five looks (u_style):
@@ -1101,6 +1116,7 @@ uniform vec4 u_cut;        // the open bottom (the G20's bottom row shows below 
                            // 3 round closed: the disc stays opaque, the dial fading into black, over BMW's sign), the
                            // window's soft edge (px past its shape until the dial is whole)
 uniform vec4 u_cutW;       // the window (BMW's own sign or lamp shows through), layer px: round cx, cy, r; box x0, y0, x1, y1
+${NIGHT_GLSL}
 #define u_size u_geo.xy
 #define u_ringW u_geo.z
 #define u_flip u_geo.w
@@ -1125,6 +1141,10 @@ uniform vec4 u_cutW;       // the window (BMW's own sign or lamp shows through),
 #define u_value u_dyn.x
 #define u_over u_dyn.yz
 #define u_hot u_dyn.w
+// The over-speed marking's leading "tab" (MEASURED 2026-11-15 off reference/6wb/12, see the u_over blocks below):
+// half its angular width, as a fraction of the sweep. 1.5 km/h of the 0..260 scale = 0.0058; the marking is only
+// ever drawn on the speed dial (hud.js guards w.measure === 'speed'), whose scale is 0..260 in every 6WB layout.
+#define LEADW 0.0058
 #define u_hasBase u_fill.z
 
 const float PI = 3.14159265359;
@@ -1179,6 +1199,10 @@ void main() {
     float pd = -p.y;                                                  // px below the centre
 
 #if STYLE < 0 || STYLE == 0
+// fix/colour-daynight: the over-speed marking's own red, the real F30 6WB's (181, 26, 17), not u_red * 0.85
+// (217, 36, 36): u_red is the redline's and keeps its colour. A constant, so no uniform; the night look (nightLook
+// at the end) recolours it as it did u_red, and the plain dimmer never dimmed a red (dimTheme: greys only).
+#define OVER_RED vec3(0.710, 0.102, 0.067)
     if (u_style < 0.5) {
         // ---- Comfort
         float r1 = 0.51 * R, r2 = 0.36 * R, fl = 0.26 * R;
@@ -1187,10 +1211,18 @@ void main() {
         float lit = 0.5 + 0.5 * dot(nn, vec2(-0.6, 0.8));              // 1 on the side facing the light (upper left)
         if (u_hasBase > 2.5) {
             // baked: the whole static dial (face, ticks, red zone, OFF arc, discs, rings, bezel, bottom arc); live on top:
-            // the over-speed band (inside the ticks), then the hub and the needle below
+            // the over-speed marking, then the hub and the needle below.
+            // Radii MEASURED off the F30 (docs/F30-FONT-SPEC.md 9.2-9.3): the marking lives in the EMPTY RING between
+            // the hub and the numerals - hard inner edge 0.521 R, brightest there, fading outward to nothing at
+            // 0.663 R, which is where the numeral band begins. It never reaches the numerals or the ticks.
+            // Before 2026-11-15 this ran 0.64 R -> 0.80 R and faded the OTHER way (faint inside, strong outside).
             col = mix(u_face, bs.rgb, bs.a);
-            if (u_over.x >= 0.0 && inSweep && frac >= u_over.x && frac <= u_over.y && d > 0.64 * R && d < 0.80 * R) {
-                col = mix(col, u_red * 0.85, 0.75 * smoothstep(0.64 * R, 0.80 * R, d));
+            if (u_over.x >= 0.0 && inSweep && frac >= u_over.x - LEADW && frac <= u_over.y && d > 0.521 * R) {
+                float lead = 1.0 - smoothstep(0.0, LEADW, abs(frac - u_over.x));
+                float outR = mix(0.663, 0.795, lead) * R;
+                float a = 0.72 * clamp((outR - d) / (outR - 0.54 * R), 0.0, 1.0)
+                        + 0.30 * (1.0 - smoothstep(0.0, 0.014 * R, abs(d - 0.530 * R)));
+                if (d < outR) col = mix(col, OVER_RED, min(a, 1.0));
             }
         } else {
             // the face: black (the references' lifted dark is their LCD's black level and the camera, not drawn), a faint
@@ -1225,9 +1257,14 @@ void main() {
                 col = mix(col, u_red * 0.9, 0.6 * smoothstep(0.74 * R, 0.88 * R, d));
             }
             if (inSweep && u_redFrom <= 1.0 && frac >= u_redFrom && d > 0.862 * R && d < to) col = u_red;
-            // over the limit: a red wedge from the limit to the needle, inside the ticks
-            if (u_over.x >= 0.0 && inSweep && frac >= u_over.x && frac <= u_over.y && d > 0.64 * R && d < 0.905 * R) {
-                col = mix(col, u_red * 0.85, 0.8 * smoothstep(0.64 * R, 0.80 * R, d));
+            // over the limit: a red wedge in the empty ring between the hub and the numerals. The same measured
+            // radii as the baked path above; the angular ends are whatever the engine puts in u_over (hud.js).
+            if (u_over.x >= 0.0 && inSweep && frac >= u_over.x - LEADW && frac <= u_over.y && d > 0.521 * R) {
+                float lead = 1.0 - smoothstep(0.0, LEADW, abs(frac - u_over.x));
+                float outR = mix(0.663, 0.795, lead) * R;
+                float a = 0.72 * clamp((outR - d) / (outR - 0.54 * R), 0.0, 1.0)
+                        + 0.30 * (1.0 - smoothstep(0.0, 0.014 * R, abs(d - 0.530 * R)));
+                if (d < outR) col = mix(col, OVER_RED, min(a, 1.0));
             }
             // the tick track: a groove, darker than the face, between two lit rims
             if (u_hasBase < 0.5) {
@@ -1468,6 +1505,12 @@ void main() {
             // 2026-11-14: the ring starts where the window ends (cutWin), not 1 px past its soft edge: in between, low in
             // the dial (its cut fade, cutK ~0.4 at BMW's line, y ~645) the dial was half see-through and BMW's line
             // showed as two short arcs beside the sign (car photo 2026-11-14, "the whiskers")
+            // 2026-11-16: 10 px, not 8, so the ring still reaches as far out as it did while the window was 2 px
+            // wider (gen_6wb.py SIGN_WIN 42 -> 40): the collar's own black keeps clear of r 46 round the sign and
+            // its baked edge is soft, so the ring has to meet it at ~r 51, not stop at 49.
+            // strip integration (2026-11-16): 8 px again, fading out by 10. The window is on BMW's measured centre at r
+            // 42 now, and below y 596 the strip mask is black round the sign anyway; at 10 / 12 the ring's foot reached
+            // y 674.8 - the rear belts' 3 px safety footprint (package ZL: from y 674.25). Now it ends at y 672.8.
             float ring = cutWin * (1.0 - smoothstep(u_cut.w + 8.0, u_cut.w + 10.0, cutSd));
             float ringA = max(cutK * cutWin, ring);
             col *= cutK * cutWin / max(ringA, 0.001);
@@ -1476,9 +1519,10 @@ void main() {
         }
         // --- end car3 G ---
         if (u_cut.z > 2.5) {
-            // the closed disc: opaque out to 8 px past the window's soft edge, as the open window's black ring (car3 G:
-            // the window is tight on the sign now, and the collar keeps off r 46 round it)
-            float cutA = max(cutK, 1.0 - smoothstep(u_cut.w + 8.0, u_cut.w + 10.0, cutSd));
+            // the closed disc: opaque out to 10 px past the window's soft edge, as the open window's black ring (car3 G:
+            // the window is tight on the sign now, and the collar keeps off r 46 round it; 2026-11-16: 8 -> 10 px
+            // with the window 2 px tighter, so the disc still meets the collar's soft black edge)
+            float cutA = max(cutK, 1.0 - smoothstep(u_cut.w + 8.0, u_cut.w + 10.0, cutSd));     // (strip integration: as the ring)
             col *= cutK / max(cutA, 0.001);
             cutK = cutA;
         } else {
@@ -1486,7 +1530,7 @@ void main() {
         }
         edge *= cutK;
     }
-    gl_FragColor = vec4(min(col, vec3(1.0)), edge);
+    gl_FragColor = vec4(min(nightLook(col), vec3(1.0)), edge);      // 2026-11-14: the night look (identity by day)
 }
 `;
 
@@ -1534,39 +1578,52 @@ uniform vec4 u_fade;
 uniform vec4 u_foot;      // the line at the window's foot: style (0 the baked glass line u_t2, 1 hairline, 2 chrome,
                           // 3 none), y, x0, x1
 // --- package F (docs/POLISH-F-REPORT.md), the collar path (u_hasTex 2, 6WB Dials + G20) only ---
-// u_t1 over u_r1 (w 0: none): more black at full size, coverage in alpha (BMW's bottom lines, hooks and grey dash,
-// kept 3 px off the check-control frame, text and "i"; tools/overlay/plan_dials.py). u_shade: the shade at our dials'
-// inner edges over BMW's map ("dialShade"): strength at the rim (0: none), falloff px, the y span it fades out over;
-// none inside u_shadeKo (x0, y0, x1, y1: BMW's right "i"). u_pat0..3: up to 4 black patches (x0, y0, x1, y1; x1 <= x0:
-// none) over the bottom-row items we draw ourselves (ownRange / ownClock / ownTemp) and BMW's left hook stub
-// car3 G: four plain vec4s, not one vec4[4] array (docs/CAR3-G-REPORT.md: no array uniform on the car's WBBACK)
+// u_shade: the shade at our dials' inner edges over BMW's map ("dialShade"): strength at the rim (0: none), falloff px,
+// the y span it fades out over; none inside u_shadeKo (x0, y0, x1, y1: BMW's right "i"). (Package F's cover and the
+// four black patches u_pat0..3 are gone: package M's strip mask draws that black now.)
 uniform vec4 u_shade;
 uniform vec4 u_shadeKo;
-uniform vec4 u_pat0;
-uniform vec4 u_pat1;
-uniform vec4 u_pat2;
-uniform vec4 u_pat3;
-// 2026-11-14: px each patch's foot fades out over, ending at its y1 (0: a hard, rounded edge), so a patch can meet the
-// band under our dials' faded bottoms (the collar) at its height and with its soft edge
-uniform vec4 u_patSoft;
-// BMW's check-control message panel (2026-11-13): while the car says a message shows, this rounded box (x0, y0, x1, y1,
-// layer px; x1 <= x0: none) is see-through in every 6WB layout, so BMW's message shows clean; otherwise ours is drawn
-// there (Comfort: the bar; Dials + G20: a black patch, hud.js "cc" with "!cc:shown")
+// BMW's check-control message panel (2026-11-13), the opaque layouts: while the car says a message shows, this
+// rounded box (x0, y0, x1, y1, layer px; x1 <= x0: none) is see-through, so BMW's message shows clean. (The collar
+// path opens BMW's panel with the strip mask's hole lane instead.)
 uniform vec4 u_cc;
+// ---- fix/opaque-cc (2026-11-16): BMW's panel OUTLINE, not a box (docs/strip/ZC-REPORT.md, "zc.panel"). u_cc is then
+// the outline's bounds (tips x, top, bottom). u_ccS: the arc rail's shoulder circles, left centre x, right centre x,
+// centre y, radius (w 0: none, the old rounded box); u_ccE: the sides, x >= L - max(Ly - y, 0) (left: the tip, then
+// straight down) and x <= R + max(Ry - y, 0) (right: the slant along the fill's fade), as L, Ly, R, Ry.
+uniform vec4 u_ccS;
+uniform vec4 u_ccE;
+// ---- end fix/opaque-cc ----
 // --- end package F ---
+// --- package M (docs/strip/M-REPORT.md): the STRIP mask, the collar path only ---
+// One baked R8 atlas (u_t2; its size in px in u_r2.zw; tools/strip/bake_mask.py) holds our coverage over BMW's
+// bottom strip at full size, one byte a px, one "lane" per state of the row, each in its own tile. u_mk: the box the
+// cover lanes share (layer px x0, y0, x1, y1; x1 <= x0: no lane, the collar alone); inside it our black IS the lane,
+// outside it the collar draws. u_mh: the hole lane's box (BMW's message panel, its symbol and marker), a multiplier
+// applied last (x1 <= x0: none). u_mo: where the cover lane and the hole lane start in the atlas, px (cover x, y,
+// hole x, y): one message switches the lane.
+uniform vec4 u_mk;
+uniform vec4 u_mh;
+uniform vec4 u_mo;
+// --- end package M ---
+${NIGHT_GLSL}
 
 const float PI = 3.14159265359;
+
+// package M: is p in the box b (x0, y0, x1, y1; half-open; x1 <= x0: never)
+bool inBox(vec2 p, vec4 b) { return b.z > b.x && p.x >= b.x && p.y >= b.y && p.x < b.z && p.y < b.w; }
+// package M: an R8 asset's byte. The car samples R8 as (r, 0, 0, 1); the bench page gets it as (r', r', r', r) with
+// r' rounded by its canvas's premultiplied alpha, so .a is read wherever it is not 1 (exact on both, bilinear too)
+float r8a(vec4 s) { return s.a < 0.999 ? s.a : s.r; }
+// package M: a lane's value at p (its box b, its origin o in the atlas). floor() + 0.5 lands on the texel's centre
+// whatever the rounding of p (fp16 would miss by up to 0.94 texel past x 1024: highp, and the snap, docs/strip/
+// M-REPORT.md)
+float laneAt(vec2 p, vec4 b, vec2 o) { return r8a(texture2D(u_t2, (floor(p - b.xy) + 0.5 + o) / u_r2.zw)); }
 
 // package F: px outside the box b (x0, y0, x1, y1), rounded by r; < 0 inside. fp16-safe: length() of a clamped vector
 float boxOut(vec2 p, vec4 b, float r) {
     vec2 q = max(b.xy - p, p - b.zw) + r;
     return length(clamp(q, 0.0, 64.0)) + min(max(q.x, q.y), 0.0) - r;
-}
-
-// package F: a black patch b (x0, y0, x1, y1), rounded 6 px; with a soft foot (px) its bottom fades out over that, to y1
-float patch(vec2 p, vec4 b, float soft) {
-    if (soft <= 0.0) return 1.0 - smoothstep(0.0, 2.0, boxOut(p, b, 6.0));
-    return (1.0 - smoothstep(0.0, 2.0, boxOut(p, vec4(b.xyz, b.w + 8.0), 6.0))) * (1.0 - smoothstep(b.w - soft, b.w, p.y));
 }
 
 // the line at the window's foot (u_foot), drawn over the map's fade: 1 a hairline fading out at both ends (the 6WB's
@@ -1604,25 +1661,22 @@ void main() {
     float cy = u_dl.y, R = u_dl.z;
     vec3 col = vec3(0.0);
     if (u_hasTex > 1.5) {
-        // the collar: pure black (empty space is black), its coverage soft and baked (tools/overlay/plan_dials.py)
-        vec2 u0 = (p - u_r0.xy) / u_r0.zw;
-        float a = u0.x >= 0.0 && u0.y >= 0.0 && u0.x <= 1.0 && u0.y <= 1.0 ? texture2D(u_t0, u0).a : 0.0;
-        // --- package F: the full-size cover, the shade at our dials' inner edges, the bottom-row patches ---
-        if (u_r1.z > 0.0) {
-            vec2 u1 = (p - u_r1.xy) / u_r1.zw;
-            if (u1.x >= 0.0 && u1.y >= 0.0 && u1.x <= 1.0 && u1.y <= 1.0) a = max(a, texture2D(u_t1, u1).a);
+        float a = 0.0;
+        if (inBox(p, u_mk)) a = laneAt(p, u_mk, u_mo.xy);            // package M: the strip mask's lane is our black
+        else {
+            // the collar: pure black (empty space is black), its coverage soft and baked (tools/overlay/plan_dials.py);
+            // package M: R8 now (collar_r8: a quarter of the pixel memory), read by r8a()
+            vec2 u0 = (p - u_r0.xy) / u_r0.zw;
+            a = u0.x >= 0.0 && u0.y >= 0.0 && u0.x <= 1.0 && u0.y <= 1.0 ? r8a(texture2D(u_t0, u0)) : 0.0;
         }
+        // --- package F: the shade at our dials' inner edges (laid over the window's veil below) ---
+        float sh = 0.0;
         if (u_shade.x > 0.0 && between > 0.5) {
             float o = min(dl, dr);                                   // px outside the nearer dial (scaled lengths above)
             float vy = 1.0 - clamp((p.y - u_shade.z) / max(u_shade.w - u_shade.z, 1.0), 0.0, 1.0);
-            float sh = u_shade.x * exp(-max(o, 0.0) / u_shade.y) * vy * clamp((o + 3.0) / 3.0, 0.0, 1.0);
+            sh = u_shade.x * exp(-max(o, 0.0) / u_shade.y) * vy * clamp((o + 3.0) / 3.0, 0.0, 1.0);
             if (u_shadeKo.z > u_shadeKo.x) sh *= smoothstep(0.0, 2.0, boxOut(p, u_shadeKo, 0.0));
-            a = max(a, sh);
         }
-        if (u_pat0.z > u_pat0.x) a = max(a, patch(p, u_pat0, u_patSoft.x));
-        if (u_pat1.z > u_pat1.x) a = max(a, patch(p, u_pat1, u_patSoft.y));
-        if (u_pat2.z > u_pat2.x) a = max(a, patch(p, u_pat2, u_patSoft.z));
-        if (u_pat3.z > u_pat3.x) a = max(a, patch(p, u_pat3, u_patSoft.w));
         // --- end package F ---
         // car3 G: BMW's map between our dials gets soft edges (docs/CAR3-G-REPORT.md): black beside and above the
         // window u_wbox (x, y, w, h, measured on the car photos 41 and 42), fading to clear over u_fade.y px at its
@@ -1645,6 +1699,9 @@ void main() {
             a = max(a, mv);
         }
         // --- end car3 G ---
+        // 2026-11-16: the shade goes OVER the veil (alpha-over, black on black). It was max()ed in before the veil, whose
+        // a *= 1 - vis and max(a, mv) = 1 - vis then overwrote it everywhere: "dialShade" changed nothing. sh 0: a as before
+        a += sh * (1.0 - a);
         // 2026-11-14: the window's foot line as in 6WB Comfort ("wbFoot"), over the black foot band
         vec4 L = footLine(p);
         vec3 fc = vec3(0.0);
@@ -1653,8 +1710,8 @@ void main() {
             fc = L.rgb * L.a / max(a2, 1e-4);
             a = a2;
         }
-        if (u_cc.z > u_cc.x) a *= smoothstep(-0.5, 3.0, boxOut(p, u_cc, 8.0));      // the message panel shows
-        gl_FragColor = vec4(min(fc, vec3(1.0)), a);
+        if (inBox(p, u_mh)) a *= laneAt(p, u_mh, u_mo.zw);           // package M: BMW's message panel shows
+        gl_FragColor = vec4(min(nightLook(fc), vec3(1.0)), a);       // 2026-11-14: the night look
         return;
     }
     // the soft window (u_wbox): its sides and the dials' rims shade it, its top and bottom fade the map
@@ -1787,8 +1844,19 @@ void main() {
         col = (L.rgb * L.a + col * alpha * (1.0 - L.a)) / max(a2, 1e-4);
         alpha = a2;
     }
-    if (u_cc.z > u_cc.x) alpha *= smoothstep(-0.5, 3.0, boxOut(p, u_cc, 8.0));  // the message panel shows
-    gl_FragColor = vec4(min(col, vec3(1.0)), alpha);
+    // ---- fix/opaque-cc: the message panel shows, cut to BMW's own outline (flat top, round shoulders, tips, sides),
+    // a 2 px feather outward. sd < 0 inside; the shoulder's offsets are clamped to 128 px (fp16-safe length())
+    if (u_cc.z > u_cc.x) {
+        float sd = boxOut(p, u_cc, u_ccS.w > 0.0 ? 0.0 : 8.0);
+        if (u_ccS.w > 0.0) {
+            vec2 q = clamp(vec2(max(u_ccS.x - p.x, p.x - u_ccS.y), u_ccS.z - p.y), 0.0, 128.0);
+            sd = max(sd, max(length(q) - u_ccS.w,
+                max(u_ccE.x - max(u_ccE.y - p.y, 0.0) - p.x, p.x - u_ccE.z - max(u_ccE.w - p.y, 0.0))));
+        }
+        alpha *= smoothstep(-0.5, 1.5, sd);
+    }
+    // ---- end fix/opaque-cc ----
+    gl_FragColor = vec4(min(nightLook(col), vec3(1.0)), alpha);  // 2026-11-14: the night look (identity by day)
 }
 `;
 
@@ -1810,6 +1878,7 @@ uniform sampler2D u_s0;
 uniform sampler2D u_s1;
 uniform vec4 u_r0;
 uniform vec4 u_r1;
+${NIGHT_GLSL}     // 2026-11-14: at night only dimmed (hud.js "sign"), a road sign keeps its colours
 
 const vec3 RED = vec3(0.84, 0.05, 0.07);
 
@@ -1858,7 +1927,7 @@ void main() {
             vec4 b = tex(u_s1, u_r1, p);
             col = vec4(mix(col.rgb, b.rgb, b.a), max(col.a, b.a));
         }
-        gl_FragColor = col;
+        gl_FragColor = vec4(nightLook(col.rgb), col.a);
         return;
     }
     float R = 38.0;
@@ -1882,7 +1951,7 @@ void main() {
         s = mix(s, vec3(0.95), rbox(q, vec2(8.0, -3.0), vec2(4.0, 1.4), 0.8) * r * field);
         col = vec4(mix(col.rgb, s, a), max(col.a, a));
     }
-    gl_FragColor = col;
+    gl_FragColor = vec4(nightLook(col.rgb), col.a);
 }
 `;
 
@@ -2388,25 +2457,26 @@ void main() {
  *  layout made it reset (0.7.11, 0.7.12; 0.7.10's sources were ~5 % shorter and drew). So the inactive looks are cut
  *  out here, before the source leaves the app (the "#if STYLE" blocks, evaluated in JS), and so are the comments and
  *  blank lines: the KOMBI gets a much shorter source with nothing in it to skip. */
-function styled(src, style) {
+function styled(src, style, night) {
     const n = Number.isInteger(style) && style >= 0 && style <= 4 ? style : -1;
-    return compact('#define STYLE ' + n + '\n' + src, n);
+    return compact('#define STYLE ' + n + '\n' + src, n, night);     // 2026-11-16: night false: no night look (NIGHT_GLSL)
 }
 
 /** A shader source with its "#if STYLE ..." blocks resolved for STYLE n (other directives kept as they are), then
  *  without comments, trailing spaces and blank lines. GLSL ES 1.00 has no strings, so "//" always starts a comment. */
-function compact(src, n) {
+function compact(src, n, night) {
+    const nk = night === false ? 0 : 1;  // 2026-11-16: NIGHT (NIGHT_GLSL); on unless false, so every other caller is as before
     const out = [], stack = [];          // per open #if: { mine: a STYLE block, take: its branch is kept, done: one was }
     const on = () => stack.every((f) => !f.mine || f.take);
     const cond = (e) => {
-        const x = e.replace(/\bSTYLE\b/g, '(' + n + ')');
+        const x = e.replace(/\bSTYLE\b/g, '(' + n + ')').replace(/\bNIGHT\b/g, '(' + nk + ')');      // 2026-11-16: NIGHT
         if (!/^[\d\s()<>=!|&-]+$/.test(x)) throw new Error('shaders.compact: cannot evaluate #if ' + e);
         return !!Function('return (' + x + ');')();       // only digits and operators reach here
     };
     src.split('\n').forEach((line) => {
         const t = line.trim();
         let m;
-        if ((m = /^#if\s+(.*\bSTYLE\b.*)$/.exec(t))) {
+        if ((m = /^#if\s+(.*\b(?:STYLE|NIGHT)\b.*)$/.exec(t))) {      // 2026-11-16: NIGHT too
             const take = cond(m[1]);
             stack.push({ mine: true, take, done: take });
             return;
@@ -2426,7 +2496,10 @@ function compact(src, n) {
         if (c.trim()) out.push(c);
     });
     if (stack.length) throw new Error('shaders.compact: an #if without #endif');
-    return out.join('\n') + '\n';
+    // 2026-11-16: NIGHT 0: nightLook(x) is gone from the source, so each call becomes its plain argument
+    const res = nk ? out.join('\n') + '\n' : out.join('\n').replace(/\bnightLook\(([\w.]+)\)/g, '$1') + '\n';
+    if (!nk && /\bnightLook\b|\bu_nk\d/.test(res)) throw new Error('shaders.compact: a night look left in a NIGHT 0 source');
+    return res;
 }
 
-module.exports = { wbdialFor: (style) => styled(WBDIAL, style), wbbackFor: (style) => styled(WBBACK, style), shiftbar: SHIFTBAR, arc: ARC, revbar: REVBAR, lights: LIGHTS, fill: FILL, box: BOX, grid: GRID, segbar: SEGBAR, mdash: MDASH, mtach: MTACH, sdash: SDASH, boxes: BOXES, atext: ATEXT, dial: DIAL, wbdial: styled(WBDIAL, -1), wbback: styled(WBBACK, -1), wbsign: compact(WBSIGN, -1), wbmsa: compact(WBMSA, -1) /* car3 I */, meter: METER, gmeter: GMETER, revarc: REVARC, tiles: TILES, g20dial: G20DIAL };
+module.exports = { wbdialFor: (style, night) => styled(WBDIAL, style, night), wbbackFor: (style, night) => styled(WBBACK, style, night), wbsignFor: (night) => compact(WBSIGN, -1, night) /* 2026-11-16: night false: none (6WB Sport / Eco Pro) */, shiftbar: SHIFTBAR, arc: ARC, revbar: REVBAR, lights: LIGHTS, fill: FILL, box: BOX, grid: GRID, segbar: SEGBAR, mdash: MDASH, mtach: MTACH, sdash: SDASH, boxes: BOXES, atext: ATEXT, dial: DIAL, wbdial: styled(WBDIAL, -1), wbback: styled(WBBACK, -1), wbsign: compact(WBSIGN, -1), wbmsa: compact(WBMSA, -1) /* car3 I */, meter: METER, gmeter: GMETER, revarc: REVARC, tiles: TILES, g20dial: G20DIAL };

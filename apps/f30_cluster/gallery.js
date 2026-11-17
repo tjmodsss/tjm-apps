@@ -86,7 +86,8 @@ class Gallery {
             demo ? { text: 'DEMO DATA', color: '#ffb020' } : null,
             { text: on ? 'ON THE CLUSTER' : 'CLUSTER OFF', color: on ? '#3ddc84' : C.dim },
         ]);
-        const key = Menu.lookKey(hud), shown = Menu.shownName(hud), byMode = this.get('byMode') === true;
+        // the cards are themes, so a see-through file showing ("+ G20", the g20 toggle) selects its own theme's card
+        const key = Menu.lookKey(hud), shown = Menu.themeOf(Menu.shownName(hud)), byMode = this.get('byMode') === true;
         const where = key === 'hudLayout'
             ? (byMode ? 'Tap a theme: it shows until the car sends its drive mode (Theme)' : 'Tap a theme to show it in every drive mode')
             : 'Tap a theme to show it in ' + Menu.MODE_NAME[hud.driveMode] + ' (the drive mode now)';

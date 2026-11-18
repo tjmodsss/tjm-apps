@@ -8,6 +8,7 @@
  * degrees clockwise from 12 o'clock (gauge convention).
  */
 const zlib = require('zlib');
+const arabic = require('./arabic');
 const fonts = require('./fonts');
 const { t } = require('./i18n');
 
@@ -426,7 +427,7 @@ class Canvas {
      */
     text(str, x, y, size, c, opts) {
         opts = opts || {};
-        const s = opts.literal ? String(str) : t(str);
+        const s = arabic.visual(opts.literal ? String(str) : t(str));
         const f = fonts.get(opts.font || 'label', size, s);
         if (!f) return 0;
         c = rgba(c);
@@ -444,7 +445,7 @@ class Canvas {
     }
 
     textWidth(str, size, opts) {
-        const s = opts && opts.literal ? String(str) : t(str), f = fonts.get((opts && opts.font) || 'label', size, s);
+        const s = arabic.visual(opts && opts.literal ? String(str) : t(str)), f = fonts.get((opts && opts.font) || 'label', size, s);
         return f ? fonts.measure(f, s) * (size / f.size) + ((opts && opts.spacing) || 0) * Math.max(0, s.length - 1) : 0;
     }
 

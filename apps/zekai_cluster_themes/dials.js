@@ -70,7 +70,7 @@ function panel(canvas, theme, selections, data, opts) {
     const box = (lx, ly, w, h, r, color) => canvas.roundRect(x(lx), y(ly), w * scale, h * scale, r * scale, color);
     const line = (ax, ay, bx, by, width, color) =>
         canvas.line(x(ax), y(ay), x(bx), y(by), width * scale, color);
-    const { text, fitBold } = instrumentType(canvas, x, y, scale, INK, theme === 'five' ? 0.9 : 1);
+    const { text, measure, fitBold } = instrumentType(canvas, x, y, scale, INK, theme === 'five' ? 0.9 : 1);
     const quad = (pts, color) => canvas.quad(pts.map(([px, py]) => [x(px), y(py)]), color);
     const trace = (pts, width, color) => {
         for (let i = 1; i < pts.length; i++) line(...pts[i - 1], ...pts[i], width, color);
@@ -143,6 +143,19 @@ function panel(canvas, theme, selections, data, opts) {
         box(cx - 32, cy + 55, 64, 19, 4, '#172333');
         text('WAZE', cx, cy + 69, 11, INK, 'bold', 0.9);
     };
+    const mediaLine = (value, size, weight) => {
+        if (measure(value, size, weight) <= 128) return value;
+        const characters = Array.from(value);
+        let lo = 0;
+        let hi = characters.length;
+        while (lo < hi) {
+            const count = Math.ceil((lo + hi) / 2);
+            const candidate = characters.slice(0, count).join('') + '...';
+            if (measure(candidate, size, weight) <= 128) lo = count;
+            else hi = count - 1;
+        }
+        return characters.slice(0, lo).join('').trim() + '...';
+    };
     const paintSlot = (kind, cx, cy) => {
         if (kind === 'none') return;
         if (kind === 'clock') return labels(cx, cy, 'TIME', opts.clock || '--:--');
@@ -171,8 +184,13 @@ function panel(canvas, theme, selections, data, opts) {
             disc(cx - 6, cy - 13, 5, INK);
             line(cx - 2, cy - 13, cx - 2, cy - 32, 3, INK);
             line(cx - 2, cy - 32, cx + 10, cy - 27, 3, INK);
+            const media = data.media;
+            if (media && media.title) {
+                text(mediaLine(media.title, 16, 'bold'), cx, cy + 28, 16, INK, 'bold');
+                return text(mediaLine(media.artist || '', 13, 'regular'), cx, cy + 47, 13, SOFT);
+            }
             text('NOW PLAYING', cx, cy + 28, 14, INK, 'bold');
-            return text('No CarPlay track data', cx, cy + 47, 12, SOFT);
+            return text('No track data', cx, cy + 47, 12, SOFT);
         }
         if (kind === 'waze') return demoMap(cx, cy);
     };
@@ -205,53 +223,53 @@ function panel(canvas, theme, selections, data, opts) {
     }
 
     const positions = [[164, 181, 64], [306, 171, 86], [654, 171, 86], [796, 181, 64]];
-    [0, 3, 1, 2].forEach((index) => {
-        const [cx, cy, radius] = positions[index];
-        const kind = selections[SLOTS[index]];
-        frame(cx, cy, radius);
-        if (opts.mapSlot !== SLOTS[index]) paintSlot(kind, cx, cy);
-    });
-
     const lowSpeed = selections.speedPosition === 'lower';
     const centreX = 480;
     const centreY = 168;
-    frame(centreX, centreY, 112);
-    arc(centreX, centreY, 64, 106, 0, 360, palette.ring, {
-        ramp: [palette.ring, palette.ring, palette.edge, palette.ring, palette.ring],
-    });
-    const stripe = (offset, begin, end) => {
-        const p = (d) => [centreX + 0.8 * offset + 0.6 * d, centreY + 0.6 * offset - 0.8 * d];
-        line(...p(begin), ...p(end), 0.65, '#a2b6df22');
-    };
-    for (let offset = -104; offset <= 104; offset += 3.7) {
-        const reach = Math.sqrt(105 * 105 - offset * offset);
-        const gap = Math.sqrt(Math.max(0, 65 * 65 - offset * offset));
-        if (gap) {
-            stripe(offset, -reach, -gap);
-            stripe(offset, gap, reach);
-        } else stripe(offset, -reach, reach);
-    }
-    if (selections.faceColour === 'red') {
-        for (let radius = 67; radius < 105; radius += 3) {
-            arc(centreX, centreY, radius, radius + 0.7, 0, 360, '#f24e7288');
-        }
-    }
-    arc(centreX, centreY, 105, 107, 235, 485, '#8a9abe');
-    arc(centreX, centreY, 101, 106, 447, 485, '#e65065', { round: true });
-    disc(centreX, centreY, 65, '#7283aa');
-    disc(centreX, centreY, 63, lowSpeed ? palette.face : '#05070b');
     const polar = (a, r) => [centreX + Math.cos(a * Math.PI / 180) * r, centreY + Math.sin(a * Math.PI / 180) * r];
-    for (let i = 0; i <= 40; i++) {
-        const major = i % 5 === 0;
-        const angle = 145 + i * 6.25;
-        const [ax, ay] = polar(angle, 105);
-        const [bx, by] = polar(angle, major ? 97 : 100);
-        line(ax, ay, bx, by, major ? 1.8 : 0.7, major ? INK : SOFT);
-        if (major) {
-            const [cx, cy] = polar(angle, 84);
-            text(String(i / 5), cx, cy + 6, 20, INK, 'bold');
+    const paintBackground = opts.paintBackground || ((paint) => paint());
+    paintBackground(() => {
+        [0, 3, 1, 2].forEach((index) => frame(...positions[index]));
+        frame(centreX, centreY, 112);
+        arc(centreX, centreY, 64, 106, 0, 360, palette.ring, {
+            ramp: [palette.ring, palette.ring, palette.edge, palette.ring, palette.ring],
+        });
+        const stripe = (offset, begin, end) => {
+            const p = (d) => [centreX + 0.8 * offset + 0.6 * d, centreY + 0.6 * offset - 0.8 * d];
+            line(...p(begin), ...p(end), 0.65, '#a2b6df22');
+        };
+        for (let offset = -104; offset <= 104; offset += 3.7) {
+            const reach = Math.sqrt(105 * 105 - offset * offset);
+            const gap = Math.sqrt(Math.max(0, 65 * 65 - offset * offset));
+            if (gap) {
+                stripe(offset, -reach, -gap);
+                stripe(offset, gap, reach);
+            } else stripe(offset, -reach, reach);
         }
-    }
+        if (selections.faceColour === 'red') {
+            for (let radius = 67; radius < 105; radius += 3) {
+                arc(centreX, centreY, radius, radius + 0.7, 0, 360, '#f24e7288');
+            }
+        }
+        arc(centreX, centreY, 105, 107, 235, 485, '#8a9abe');
+        arc(centreX, centreY, 101, 106, 447, 485, '#e65065', { round: true });
+        disc(centreX, centreY, 65, '#7283aa');
+        disc(centreX, centreY, 63, lowSpeed ? palette.face : '#05070b');
+        for (let i = 0; i <= 40; i++) {
+            const major = i % 5 === 0;
+            const angle = 145 + i * 6.25;
+            const [ax, ay] = polar(angle, 105);
+            const [bx, by] = polar(angle, major ? 97 : 100);
+            line(ax, ay, bx, by, major ? 1.8 : 0.7, major ? INK : SOFT);
+            if (major) {
+                const [cx, cy] = polar(angle, 84);
+                text(String(i / 5), cx, cy + 6, 20, INK, 'bold');
+            }
+        }
+    });
+    positions.forEach(([cx, cy], index) => {
+        if (opts.mapSlot !== SLOTS[index]) paintSlot(selections[SLOTS[index]], cx, cy);
+    });
     if (Number.isFinite(data.rpm)) {
         const angle = 145 + 250 * Math.max(0, Math.min(1, data.rpm / 8000));
         const [ax, ay] = polar(angle, lowSpeed ? -18 : 65);

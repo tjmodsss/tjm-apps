@@ -1,5 +1,19 @@
-# Custom Cluster 0.6.9 — BMW G21 / MGU iDrive 7
+# Custom Cluster 0.6.10 — BMW G21 / MGU iDrive 7
 
+
+## 0.6.10 — selector text: D or gear (D1, D2 ...)
+
+New setting **Selector text: D or gear** (`gearDisplay`). It decides what stands where the selector position is shown (P, R, N, D):
+
+| Choice | Shows in drive |
+| --- | --- |
+| D only (drive mode) | `D` |
+| D1, D2 ... when the car reports the gear (default, same as before) | `D3` if the car sends the engaged gear, otherwise `D` |
+| D1, D2 ... also estimated from RPM and speed | `D3` also when the number is only estimated from the RPM/speed ratio learned while driving; `D` as long as nothing is learned |
+
+P, R and N never change. The text is used in the layout readouts under the speed value and in the selector line of this app's pages. A gear change is picked up even without a new RPM/speed sample.
+
+**Where you will see it:** the KOMBI layouts are released as soon as the car leaves P (parked-only rule, unchanged). In the cluster the setting therefore only matters if that rule is ever relaxed; while driving it already shows on the app's own screen (selector line on the main page). The estimate is a guess and can be wrong right after a gear change or in a gear the app has not learned yet.
 
 ## 0.6.9 — starts with the car, works without the app window
 

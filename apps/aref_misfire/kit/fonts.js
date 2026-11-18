@@ -28,6 +28,8 @@ function family(name) {
 function get(name, size, text) {
     // A shared CJK atlas avoids duplicating hundreds of glyphs in every numeric size.
     if (text && /[\u3000-\u9fff\uff00-\uffef]/.test(text)) name = 'cjk';
+    // Arabic (shaped by arabic.js into presentation forms): the 'arabic' atlas, which has Latin too
+    else if (text && /[\u0600-\u06ff\ufb50-\ufdff\ufe70-\ufeff]/.test(text)) name = 'arabic';
     const fam = family(name) || family('label');
     if (!fam) return null;
     let best = null;

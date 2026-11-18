@@ -47,7 +47,7 @@ function silverDials(canvas, data, opts, selections, paintSlot) {
         line(point(cx, cy, angle, inner), point(cx, cy, angle, outer), width, colour);
     }
 
-    function sideDial(slot, defaultKind, value) {
+    function sideFace(slot, defaultKind) {
         const cx = SILVER_SIDE_DIALS[slot];
         const left = slot === 'leftInner';
         const r = 96;
@@ -64,11 +64,7 @@ function silverDials(canvas, data, opts, selections, paintSlot) {
         ring(cx, SIDE_Y, r - 5, r - 2, start, end, '#181b22', [open, '#515763', '#42454e', '#777c85', open]);
         ring(cx, SIDE_Y, r - 2, r + 1, start, end, CHROME, [open, '#e5e6ec', '#fbfaf7', '#dbdce5', open]);
 
-        const kind = selections[slot] || defaultKind;
-        if (kind !== defaultKind) {
-            if (opts.mapSlot !== slot) paintSlot(kind, cx, SIDE_Y);
-            return;
-        }
+        if ((selections[slot] || defaultKind) !== defaultKind) return;
         const sign = left ? -1 : 1;
         for (let n = 0; n <= 42; n++) {
             const angle = sign * n * (180 / 42);
@@ -81,37 +77,49 @@ function silverDials(canvas, data, opts, selections, paintSlot) {
         text(left ? '0' : '0%', cx, SIDE_Y + 78, 13, SILVER, 'bold');
 
         disc(cx, SIDE_Y, 10, '#050609');
-        if (value !== null) {
-            const angle = sign * (1 - value) * 180;
-            const inner = point(cx, SIDE_Y, angle, -21);
-            const tip = point(cx, SIDE_Y, angle, 68);
-            line(inner, tip, 3.2, '#5f626c');
-            line(inner, tip, 1.4, '#e5e3df');
+    }
+
+    function sideReading(slot, defaultKind, value) {
+        const cx = SILVER_SIDE_DIALS[slot];
+        const kind = selections[slot] || defaultKind;
+        if (kind !== defaultKind) {
+            if (opts.mapSlot !== slot) paintSlot(kind, cx, SIDE_Y);
+            return;
         }
+        if (value === null) return;
+        const angle = (slot === 'leftInner' ? -1 : 1) * (1 - value) * 180;
+        const inner = point(cx, SIDE_Y, angle, -21);
+        const tip = point(cx, SIDE_Y, angle, 68);
+        line(inner, tip, 3.2, '#5f626c');
+        line(inner, tip, 1.4, '#e5e3df');
     }
 
     const rpm = fraction(readings.rpm, RPM_SCALE);
     const fuel = fraction(readings.fuelLitres, TANK_LITRES);
-    sideDial('leftInner', 'rpm', rpm);
-    sideDial('rightInner', 'fuelRange', fuel);
+    const paintBackground = opts.paintBackground || ((paint) => paint());
+    paintBackground(() => {
+        sideFace('leftInner', 'rpm');
+        sideFace('rightInner', 'fuelRange');
+        disc(480, CENTRE_Y, 121, '#2e3137');
+        ring(480, CENTRE_Y, 119, 121, 0, 360, '#92949b', ['#9598a0', '#464951', '#252830', '#5f636b', '#9598a0']);
+        ring(480, CENTRE_Y, 114, 118, 0, 360, '#101217');
+        face(480, CENTRE_Y, 113, [[0, '#a4a5a9'], [0.22, '#e5e3df'], [0.48, '#f7f4ee'], [0.74, '#f3f1eb'], [1, '#a6a8ac']]);
+        ring(480, CENTRE_Y, 111, 113, 0, 360, '#5c6068', ['#5b5d63', '#a7a6a5', '#70737a', '#a7a6a5', '#5b5d63']);
 
-    disc(480, CENTRE_Y, 121, '#2e3137');
-    ring(480, CENTRE_Y, 119, 121, 0, 360, '#92949b', ['#9598a0', '#464951', '#252830', '#5f636b', '#9598a0']);
-    ring(480, CENTRE_Y, 114, 118, 0, 360, '#101217');
-    face(480, CENTRE_Y, 113, [[0, '#a4a5a9'], [0.22, '#e5e3df'], [0.48, '#f7f4ee'], [0.74, '#f3f1eb'], [1, '#a6a8ac']]);
-    ring(480, CENTRE_Y, 111, 113, 0, 360, '#5c6068', ['#5b5d63', '#a7a6a5', '#70737a', '#a7a6a5', '#5b5d63']);
+        for (let n = 0; n <= 84; n++) {
+            const angle = -136 + (272 / 84) * n;
+            const major = n % 14 === 0;
+            mark(480, CENTRE_Y, angle, major ? 54 : 69, major ? 100 : 82,
+                major ? 1.0 : 0.55, major ? '#90909780' : '#99989e65');
+        }
+        text('R', 477, CENTRE_Y - 37, 23, '#a2a1a580');
+        text('R', 483, CENTRE_Y - 31, 23, '#a2a1a580');
 
-    for (let n = 0; n <= 84; n++) {
-        const angle = -136 + (272 / 84) * n;
-        const major = n % 14 === 0;
-        mark(480, CENTRE_Y, angle, major ? 54 : 69, major ? 100 : 82,
-            major ? 1.0 : 0.55, major ? '#90909780' : '#99989e65');
-    }
-    text('R', 477, CENTRE_Y - 37, 23, '#a2a1a580');
-    text('R', 483, CENTRE_Y - 31, 23, '#a2a1a580');
-
-    disc(480, CENTRE_Y, 18, '#d6d3cf');
-    disc(480, CENTRE_Y, 11, '#272729');
+        disc(480, CENTRE_Y, 18, '#d6d3cf');
+        disc(480, CENTRE_Y, 11, '#272729');
+    });
+    sideReading('leftInner', 'rpm', rpm);
+    sideReading('rightInner', 'fuelRange', fuel);
     const speed = Number.isFinite(readings.speed) && readings.speed >= 0 ? readings.speed : null;
     if (speed !== null) {
         const angle = -136 + Math.min(speed / SPEED_SCALE_KMH, 1) * 272;

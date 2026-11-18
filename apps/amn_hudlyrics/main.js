@@ -42,7 +42,7 @@ const record = require('./kit/record');
 const PREVIEW_ID = 300;         // the tach preview's picture id (mgu-render: 64 pictures per app)
 const G = require('./kit/gauges');
 
-const VERSION = '0.7.0';
+const VERSION = '0.7.2';
 const W = 1600, H = 520;
 const IFACES = [
     { iface: 'de.bmw.infotainment.a4a.carplay.CarPlayManager', instances: ['CarPlayManagerInst1'] },

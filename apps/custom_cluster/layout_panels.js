@@ -201,12 +201,15 @@ function face(layout,side,accent,Canvas){
 }
 // Secondary live line: selector/gear on the speed side, oil and coolant
 // temperature on the rev-counter side. Missing values are shown as '--'.
+// data.gearMode (setting gearDisplay): 'selector' = D only, 'gear' = D1..D10 when the car
+// reports the engaged gear (default), 'gear_estimate' = also the gear estimated from rpm/speed.
 function gearText(data){
     const s=data.stage;
     if(s==='P'||s==='R'||s==='N')return s;
     if(s==='D'){
-        const g=data.gear;
-        return typeof g==='number'&&g>=1&&g<=10&&!data.gearGuessed?'D'+g:'D';
+        const mode=data.gearMode||'gear',g=data.gear;
+        if(mode==='selector'||!(typeof g==='number'&&g>=1&&g<=10))return 'D';
+        return !data.gearGuessed||mode==='gear_estimate'?'D'+g:'D';
     }
     return '--';
 }

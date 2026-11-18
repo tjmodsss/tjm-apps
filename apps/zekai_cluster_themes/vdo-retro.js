@@ -46,10 +46,6 @@ function vdoPanel(canvas, data, opts = {}) {
         circle(cx, cy, radius - 14, C.face);
     };
 
-    // Leave clearance around the bezel on the 1920×720 panel.
-    round(75, 14, 810, 298, 12, '#181a1c');
-    round(80, 18, 800, 290, 10, '#25282b');
-
     const speed = Number.isFinite(data.speed) ? data.speed : null; // BMW signal is km/h.
     const speedMph = speed === null ? null : speed / KM_PER_MILE;
     const rpm = Number.isFinite(data.rpm) ? data.rpm : null;
@@ -58,13 +54,21 @@ function vdoPanel(canvas, data, opts = {}) {
     const tripMiles = Number.isFinite(data.tripKm) ? data.tripKm / KM_PER_MILE : null;
     const fuelFraction = Number.isFinite(data.fuelLitres) ? Math.max(0, Math.min(1, data.fuelLitres / TANK_LITRES)) : null;
 
-    drawSpeedometer();
-    drawTachometer();
+    const speedCx = 228, tachCx = 732, dialCy = 163, dialRadius = 141;
+    const paintBackground = opts.paintBackground || ((paint) => paint());
+    paintBackground(() => {
+        // Leave clearance around the bezel on the 1920×720 panel.
+        round(75, 14, 810, 298, 12, '#181a1c');
+        round(80, 18, 800, 290, 10, '#25282b');
+        speedometerFace(speedCx, dialCy, dialRadius);
+        tachometerFace(tachCx, dialCy, dialRadius);
+    });
+    drawSpeedometer(speedCx, dialCy);
+    drawTachometer(tachCx, dialCy);
     drawCentreStack();
     return canvas;
 
-    function drawSpeedometer() {
-        const cx = 228, cy = 163, r = 141;
+    function speedometerFace(cx, cy, r) {
         dialFace(cx, cy, r);
         // Outer MPH ring: 0 to 120 with a 10 mph face cadence.
         for (let value = 0; value <= 120; value += 5) {
@@ -88,6 +92,9 @@ function vdoPanel(canvas, data, opts = {}) {
         }
         text('VDO', cx, 106, 11, C.ink, 'center', 'bold');
         text('ODO · mi', cx, 121, 8, C.soft);
+    }
+
+    function drawSpeedometer(cx, cy) {
         if (speedMph !== null) needle(cx, cy, 103, 225 + Math.max(0, Math.min(120, speedMph)) / 120 * 270, 2.5);
         // Mechanical-style odometer rollers, now rendered as crisp electronic digits.
         drawCounter(cx - 51, 139, odoMiles === null ? '------' : String(odoMiles).padStart(6, '0').slice(-6));
@@ -105,8 +112,7 @@ function vdoPanel(canvas, data, opts = {}) {
         }
     }
 
-    function drawTachometer() {
-        const cx = 732, cy = 163, r = 141;
+    function tachometerFace(cx, cy, r) {
         dialFace(cx, cy, r);
         for (let value = 0; value <= 70; value += 2) {
             const a = 225 + value / 70 * 270;
@@ -120,18 +126,21 @@ function vdoPanel(canvas, data, opts = {}) {
             }
         }
         text('1/min × 1000', cx, 108, 9, C.ink, 'center', 'medium');
-        needle(cx, cy, 105, 225 + Math.max(0, Math.min(7000, rpm || 0)) / 7000 * 270, 2.5);
-        const coolant = Number.isFinite(data.coolant) ? data.coolant : null;
-        miniGauge(cx - 54, 242, 25, coolant === null ? null : Math.max(0, Math.min(130, coolant)) / 130,
-            'COOLANT', coolant === null ? '--' : Math.round(coolant) + '°C');
-        miniGauge(767, 242, 25, fuelFraction, 'FUEL',
-            fuelFraction === null ? '--' : Math.round(data.fuelLitres) + ' L');
         // A restrained red band echoes the original VDO rev-limit warning.
         for (let i = 0; i < 3; i++) {
             const p1 = point(cx, cy, 129 + i * 2, 225 + (65 + i * 1.7) / 70 * 270);
             const p2 = point(cx, cy, 137, 225 + (65 + i * 1.7) / 70 * 270);
             line(p1[0], p1[1], p2[0], p2[1], 2.2, C.red);
         }
+    }
+
+    function drawTachometer(cx, cy) {
+        needle(cx, cy, 105, 225 + Math.max(0, Math.min(7000, rpm || 0)) / 7000 * 270, 2.5);
+        const coolant = Number.isFinite(data.coolant) ? data.coolant : null;
+        miniGauge(cx - 54, 242, 25, coolant === null ? null : Math.max(0, Math.min(130, coolant)) / 130,
+            'COOLANT', coolant === null ? '--' : Math.round(coolant) + '°C');
+        miniGauge(767, 242, 25, fuelFraction, 'FUEL',
+            fuelFraction === null ? '--' : Math.round(data.fuelLitres) + ' L');
     }
 
     function miniGauge(cx, cy, radius, fraction, label, reading) {

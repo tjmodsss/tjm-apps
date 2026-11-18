@@ -17,7 +17,7 @@ const { BackgroundStatus } = require('./background_status.js');
 
 function ageText(age) { return age == null ? 'no sample' : age + 's old'; }
 function testSummary(st) {
-    return 'selector=' + (st.gearPosition || '?') +
+    return 'selector=' + (st.gearLabel || st.gearPosition || '?') +
         ' speed=' + st.speedKmh + ' rpm=' + st.engineRpm +
         ' ages=' + st.speedAgeSeconds + '/' + st.rpmAgeSeconds + 's' +
         ' panel=' + (st.panelActive ? 'active' : 'off') +
@@ -147,6 +147,7 @@ mgu.run({
                 phoneBadge: !!settings.get('phoneBadge'), wazeMap: settings.get('wazeMap'),
                 enablePanelTests: !!settings.get('enablePanelTests'),
                 kombiAuto: settings.get('kombiAuto') === 'parked' ? 'parked' : 'off',
+                gearDisplay: ['selector', 'gear_estimate'].indexOf(settings.get('gearDisplay')) >= 0 ? settings.get('gearDisplay') : 'gear',
                 coverOriginal: settings.get('coverOriginal') !== false,
                 panelTestMode: 'selected_layout', panelTarget: 'panel' });
             bridge.setEnabled(!!settings.get('phoneBridge'));
@@ -445,7 +446,7 @@ mgu.run({
             cv.text('Last refusal: ' + (current.lastRefusal || '-').slice(0, 115), 48, 244, 17, t.warn);
             cv.text('Test guard: ' + current.testGuard.slice(0, 100) +
                 ' | Opt-in: ' + (settings.get('enablePanelTests') ? 'YES' : 'NO'), 48, 270, 18, t.warn);
-            cv.text('Selector=' + (current.gearPosition || '?') +
+            cv.text('Selector=' + (current.gearLabel || current.gearPosition || '?') +
                 ' | speed=' + (current.speedKmh === null ? '?' : current.speedKmh.toFixed(1)) +
                 ' (age ' + ageText(current.speedAgeSeconds) + ')' +
                 ' | rpm=' + (current.engineRpm === null ? '?' : Math.round(current.engineRpm)) +
@@ -495,7 +496,7 @@ mgu.run({
                 if(st.autoMode==='parked')cv.text('Automatic KOMBI (no menu needed): '+String(st.autoReason||'-').slice(0,70),48,444,19,
                     st.autoRun&&st.panelActive?'#2fd27a':t.dim);
                 cv.text('Renderer: '+(st.ready?'Connected':'Offline'),1100,110,24,st.ready?'#2fd27a':t.warn);
-                cv.text('Selector: '+(st.gearPosition||'?'),1100,157,23,t.text);
+                cv.text('Selector: '+(st.gearLabel||st.gearPosition||'?'),1100,157,23,t.text);
                 cv.text('Live speed/RPM: '+(st.live?'YES':'NO'),1100,201,21,t.text);
                 cv.text('Sample age: '+ageText(st.sampleAgeSeconds),1100,240,20,t.dim);
                 cv.text('KOMBI safe: '+(st.parked?'YES':'NO'),1100,280,22,st.parked?'#2fd27a':t.warn);

@@ -35,7 +35,7 @@ const ART = require('./artwork');
 const http = require('./http');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.3.3';
+const VERSION = '0.3.6';
 const HOMEPAGE = 'https://github.com/arefahmad/idrive7-apps';
 const W = 1600, H = 520;
 const IFACES = [
@@ -46,7 +46,7 @@ const IFACES = [
     { iface: 'de.bmw.infotainment.entertainment.dynamicmediaplayer.DynamicMediaPlayer', instances: [] },
 ];
 const ART_ID = 41, BG_ID = 42, BG2_ID = 43;    // pixel picture ids (record.setImage)
-const FRAME_MS = 1000 / 30;       // the animation clock's step: at most 30 different frames a second
+const FRAME_MS = 1000 / 60;       // the animation clock's step: up to 60 different frames a second while lines glide (identical frames still aren't sent)
 const LEAD_MS = 250;              // a line lights up this much before its time (reading takes a moment)
 const GLIDE_MS = 620;             // the lyrics glide to the next line over this long
 const STAGGER_MS = 45;            // ... each line below a little after the one above (Apple Music's ripple)
@@ -335,18 +335,22 @@ mgu.run({
                 if (probe) { await drawProbe(); return; }
                 // one clock for the frame in FRAME_MS steps: a frame like the last one isn't sent again
                 const now = Math.floor(Date.now() / FRAME_MS) * FRAME_MS;
-                const cv = ctx.canvas(W, H), A = FS.area(cv), fullH = H + (cv.extra || 0);
+                const cv = ctx.canvas(W, H), A0 = FS.area(cv), fullH = H + (cv.extra || 0);
+                // in the HMI's own frame BMW draws its side-panel tab (<) over the left edge: content starts right of
+                // it, and the edge is shaded so the tab sits on a band of its own (Nov 18 photo)
+                const SIDE = A0.own ? 0 : 72, A = Object.assign({}, A0, { x: A0.x + SIDE, w: A0.w - SIDE });
+                const sideBand = () => { for (let i = 0; i < SIDE; i += 4) cv.fillRect(i, 0, 4, fullH, G.withAlpha('#000000', 0.5 * (1 - i / SIDE))); };
                 if (cv.chrome) G.frame(cv, ctx.theme(), ['Lyrics', 'Probe'], 0, []);
                 if (!cur) follow();
                 if (!cur) {
                     const P = nameColours('Car Lyrics');
-                    backdrop(cv, null, now, P, fullH);
+                    backdrop(cv, null, now, P, fullH); sideBand();
                     const cy = A.y + A.h / 2;
-                    cv.text('Play a song on your phone', W / 2, cy - 6, 40, WHITE, { font: F_BOLD, align: 'center', literal: true });
-                    cv.text('Apple Music over CarPlay, or any app over Bluetooth. The lyrics show up here.', W / 2, cy + 40, 22, G.withAlpha(WHITE, 0.62), { align: 'center', font: F_MED, literal: true });
+                    cv.text('Play a song on your phone', A.x + A.w / 2, cy - 6, 40, WHITE, { font: F_BOLD, align: 'center', literal: true });
+                    cv.text('Apple Music over CarPlay, or any app over Bluetooth. The lyrics show up here.', A.x + A.w / 2, cy + 40, 22, G.withAlpha(WHITE, 0.62), { align: 'center', font: F_MED, literal: true });
                 } else {
                     const P = nameColours(cur.title + cur.artist), a = artFor(), Q = geo(A);
-                    backdrop(cv, a, now, P, fullH);
+                    backdrop(cv, a, now, P, fullH); sideBand();
                     coverColumn(cv, Q, a, P, now);
                     const lyr = lyrics.get({ title: cur.title, artist: cur.artist, album: cur.album, duration: cur.duration });
                     if (lyr.state === 'synced' && lyr.lines.length) drawSynced(cv, Q, lyr.lines, now);

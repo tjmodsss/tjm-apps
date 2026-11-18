@@ -6,6 +6,7 @@ const probeShader = require('./panel_probe_shader.js');
 const { PALETTE, resolveColor, resolve6WBColor, colorHex } = require('./cluster_colors.js');
 const COLORS = Object.keys(PALETTE).reduce((m, k) => { m[k] = PALETTE[k].concat([1]); return m; }, {});
 const StatusLine = require('./status_line.js');
+const { gearText } = require('./layout_panels.js');
 // Independent tiny effects: inspired by the architecture (not the code) of
 // Cluster Layouts and Cluster Themes. No full-screen fragment shader here.
 const PIECE_FS = `#version 100
@@ -324,11 +325,15 @@ class ClusterLayers {
             this.disarm('Vehicle moved, speed unavailable, or selector left P');
             return;
         }
-        if (this.data.stage !== d.stage) {
-            this.data.stage = d.stage;
+        if (this.data.stage !== d.stage || this.data.gear !== d.gear || this.data.gearGuessed !== d.gearGuessed) {
+            this.data.stage = d.stage; this.data.gear = d.gear; this.data.gearGuessed = d.gearGuessed;
             this.apply();
         }
     }
+    /** Live data plus the display choice for the selector/gear text (setting gearDisplay). */
+    viewData() { return Object.assign({}, this.data, { gearMode: this.options.gearDisplay }); }
+    /** Text for the selector position: P R N D, or D1..D8 depending on the setting. */
+    gearLabel() { return gearText(this.viewData()); }
     /** Last event of the phone link: 'opened', 'closed' or 'unknown'. */
     phone(state) {
         state = StatusLine.valid(state) ? state : 'unknown';
@@ -510,7 +515,7 @@ class ClusterLayers {
                 // Keep static artwork and live indicators the same colour
                 // throughout this short stationary test.
                 this.layoutAccent = resolveColor(this.options, Date.now());
-                this.layoutParts = buildLayout(this.cr, this.activePanelTarget, this.data,
+                this.layoutParts = buildLayout(this.cr, this.activePanelTarget, this.viewData(),
                     this.options, this.layoutAccent, colorHex(this.layoutAccent), ref => {
                         this.panelRefs.push(ref);
                         if (!this.panelRef) this.panelRef = ref;
@@ -530,7 +535,7 @@ class ClusterLayers {
         if (panelActive && this.panelRef && this.activeTestMode === 'selected_layout' &&
             Date.now() - this.lastSent >= 250) {
             try {
-                require('./layout_panels.js').updateLayout(this.cr,this.layoutParts,this.data,
+                require('./layout_panels.js').updateLayout(this.cr,this.layoutParts,this.viewData(),
                     this.layoutAccent,colorHex(this.layoutAccent));
                 this.lastSent = Date.now();
             } catch(e) {
@@ -633,7 +638,7 @@ class ClusterLayers {
         // speed/RPM changes, making telemetry stale even when P is selected.
         return { ready: this.ready, layer: this.layerState, target: this.targetState,
             live: this.live(), layout: this.options.layout, parked: this.parked(),
-            gearPosition: this.data.stage || null, gearP: this.data.stage === 'P',
+            gearPosition: this.data.stage || null, gearLabel: this.data.stage ? this.gearLabel() : null, gearP: this.data.stage === 'P',
             speedKmh: finite(this.data.speed) ? this.data.speed : null,
             engineRpm: finite(this.data.rpm) ? this.data.rpm : null,
             sampleAgeSeconds: this.lastSample ? Math.max(0, Math.floor((Date.now() - this.lastSample) / 1000)) : null,

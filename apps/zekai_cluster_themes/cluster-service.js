@@ -31,6 +31,7 @@ class ClusterService extends EventEmitter {
         this.lastFrame = null;
         this.lastPixels = null;
         this.scratchPixels = null;
+        this.faceCache = {};
         this.message = 'Starting cluster theme service';
         this.mapMessage = '';
         this.layerState = '';
@@ -192,7 +193,8 @@ class ClusterService extends EventEmitter {
             if (signature === this.lastFrame) return;
 
             this.lastDrawAt = now;
-            const frame = renderPanelFrame(this.theme, this.choices, data, false, this.scratchPixels || undefined);
+            const frame = renderPanelFrame(this.theme, this.choices, data, false, this.scratchPixels || undefined,
+                this.faceCache);
             if (!sendPanelFrame(this.client, this.ref, frame, this.lastPixels)) return;
             this.scratchPixels = this.lastPixels;
             this.lastPixels = frame;
@@ -221,6 +223,7 @@ class ClusterService extends EventEmitter {
         this.lastFrame = null;
         this.lastPixels = null;
         this.scratchPixels = null;
+        this.faceCache = {};
         this.layerState = '';
         this.map.wait('');
         this.setMapMessage('');

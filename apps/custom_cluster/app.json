@@ -2,7 +2,7 @@
   "id": "custom_cluster",
   "title": "TJM Custom Cluster",
   "description": "KOMBI-only selected-layout parked tests and reliable text diagnostics.",
-  "version": "0.6.9",
+  "version": "0.6.10",
   "vendor": "TJM",
   "loggingId": "OB1E",
   "iconGlyph": "CC",
@@ -102,6 +102,26 @@
         [
           "off",
           "Hide Waze map"
+        ]
+      ]
+    },
+    {
+      "key": "gearDisplay",
+      "label": "Selector text: D or gear (D1, D2 ...)",
+      "type": "choice",
+      "default": "gear",
+      "options": [
+        [
+          "selector",
+          "D only (drive mode)"
+        ],
+        [
+          "gear",
+          "D1, D2 ... when the car reports the gear"
+        ],
+        [
+          "gear_estimate",
+          "D1, D2 ... also estimated from RPM and speed"
         ]
       ]
     },

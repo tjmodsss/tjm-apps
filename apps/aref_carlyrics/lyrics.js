@@ -70,7 +70,7 @@ function fold(s) {
     return s;
 }
 /** Every character in the kit's Latin fonts (kit/runtime/fonts: ASCII and a few signs). */
-const DRAWABLE = /^[\x20-\x7e\u00b0\u00b1\u00b2\u00b3\u00b7\u00d7\u03bc\u2013\u2014\u2026\u20ac]*$/;
+const DRAWABLE = /^[\x20-\x7e\u00a0-\u00ff\u00b0\u00b1\u00b2\u00b3\u00b7\u00d7\u03bc\u2013\u2014\u2018\u2019\u201c\u201d\u2026\u20ac\u0600-\u06ff\ufb50-\ufdff\ufe70-\ufeff]*$/;   // Latin, and Arabic (kit/runtime/arabic.js)
 /** Whether an entry's lyrics can be drawn (nearly every line in the fonts). */
 function showable(entry) {
     const lines = entry.lines ? entry.lines.map((l) => l.text) : entry.text || [];

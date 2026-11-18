@@ -12,6 +12,7 @@
  * Recording a whole frame costs well under a millisecond; nothing here touches pixels.
  */
 const { Canvas, rgba } = require('./canvas');
+const arabic = require('./arabic');
 const fonts = require('./fonts');
 const { t } = require('./i18n');
 
@@ -301,7 +302,7 @@ class Recorder {
     /** Text; y is the baseline. Returns the width in logical px (as canvas.js). */
     text(str, x, y, size, c, opts) {
         opts = opts || {};
-        const s = opts.literal ? String(str) : t(str), family = opts.font || 'label';
+        const s = arabic.visual(opts.literal ? String(str) : t(str)), family = opts.font || 'label';
         const f = font(family, size * this.textScale, s);
         if (!f) return 0;
         const sc = size / f.size, sp = opts.spacing || 0;
@@ -331,7 +332,7 @@ class Recorder {
         return w;
     }
     textWidth(str, size, opts) {
-        const s = opts && opts.literal ? String(str) : t(str), f = font((opts && opts.font) || 'label', size * this.textScale, s);
+        const s = arabic.visual(opts && opts.literal ? String(str) : t(str)), f = font((opts && opts.font) || 'label', size * this.textScale, s);
         return f ? fonts.measure(f, s) * (size / f.size) + ((opts && opts.spacing) || 0) * Math.max(0, s.length - 1) : 0;
     }
 

@@ -98,6 +98,21 @@ class SafeDiag {
         finally { this.busy = false; }
         return false;
     }
+    /** Read-only identification probe of ANY address (control-unit
+     * detection). Never marks a DID as verified, so it cannot authorize a
+     * write. Resolves to the raw UDS reply, or null on timeout. */
+    async probe(addr, did) {
+        // Busy/offline is NOT a timeout: throw so detection never counts it
+        // as evidence that a control unit is missing.
+        if (!this.online) throw new Error('TASU offline');
+        if (this.busy) throw new Error('diagnostic channel busy');
+        this.busy = true;
+        const data = [did >> 8, did & 255];
+        try {
+            // null = no reply within 1.5 s; transport errors are thrown.
+            return await this.diag.physical(addr, 0x22, data, 1500, replyTo(0x22, data), { maxRetries: 0 });
+        } finally { this.busy = false; }
+    }
     async write(data, label) {
         if (this.busy) { this.info = 'Diagnostics busy'; return; }
         const did = (data[0] << 8) | data[1];

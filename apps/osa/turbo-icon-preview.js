@@ -2,6 +2,7 @@
 
 const net = require('net');
 const { Canvas } = require('./kit/canvas');
+const { warmupLabel } = require('./cluster-locales');
 const WIDTH = 430;
 const HEIGHT = 76;
 const UPPER = { x: 745, y: 539, width: WIDTH, height: HEIGHT, baseline: 47 };
@@ -16,15 +17,18 @@ function send(socket, type, body) {
     socket.write(Buffer.concat([header, body]));
 }
 const command = (socket, value) => send(socket, 0x4a, Buffer.from(JSON.stringify(value)));
-function drawMessage(socket, target, frame, placement) {
+function drawMessage(socket, target, label, frame, placement) {
     const { width, height, baseline } = placement;
     const canvas = new Canvas(width, height);
     const labelStyle = { font: 'bold', literal: true };
     const temperatureStyle = { align: 'right', literal: true };
     const temperature = target + ' °C';
-    canvas.text('Oil warmed up', 25, baseline + 2, 32, [0, 0, 0, 190], labelStyle);
+    const available = width - 68 - canvas.textWidth(temperature, 30, temperatureStyle);
+    let labelSize = 32;
+    while (canvas.textWidth(label, labelSize, labelStyle) > available) labelSize--;
+    canvas.text(label, 25, baseline + 2, labelSize, [0, 0, 0, 190], labelStyle);
     canvas.text(temperature, width - 23, baseline + 2, 30, [0, 0, 0, 190], temperatureStyle);
-    canvas.text('Oil warmed up', 24, baseline, 32, '#ffffff', labelStyle);
+    canvas.text(label, 24, baseline, labelSize, '#ffffff', labelStyle);
     canvas.text(temperature, width - 24, baseline, 30, '#ffb547', temperatureStyle);
     const body = Buffer.alloc(14 + canvas.d.length);
     body.writeUInt32LE(1, 0);
@@ -84,7 +88,7 @@ function readEvents(socket, report) {
 }
 
 // Keep the cluster message independent of the currently visible iDrive page.
-function start(log, getMessage, report, testing, isLower) {
+function start(log, getMessage, report, testing, isLower, getLanguage) {
     if (process.env.MGU_RENDERD_SOCKET && /mgu-emu-/.test(process.env.MGU_RENDERD_SOCKET)) return;
 
     let client = null;
@@ -157,10 +161,13 @@ function start(log, getMessage, report, testing, isLower) {
             command(socket, { op: 'status' });
             client.nextStatus = Date.now() + 750;
         }
-        if (message === null || message === client.message) return;
+        if (message === null) return;
+        const label = warmupLabel(getLanguage());
+        if (message === client.message && label === client.label) return;
         client.message = message;
+        client.label = label;
         client.frame = (client.frame + 1) >>> 0;
-        drawMessage(client.socket, message, client.frame, placement);
+        drawMessage(client.socket, message, label, client.frame, placement);
     }
 
     refresh();

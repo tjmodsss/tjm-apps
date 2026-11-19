@@ -15,6 +15,8 @@ const fs = require('fs');
 const path = require('path');
 const { decode: decodePng } = require('./png');
 const regenMessage = require('./regen-message');
+const { t: translate, setRuntimeTranslations } = require('./kit/i18n');
+const locales = require('./translations');
 const { ReadOnlyDiag } = require('./kit/readonly-diag');
 
 const W = 1600;
@@ -24,6 +26,26 @@ const TABS = ['Overview', 'Detail', 'About'];
 mgu.run({
     async start(ctx) {
         const { ui, log } = ctx;
+        let idriveLanguage = 'en';
+        function applyLanguage() {
+            const selected = ctx.settings.get('language');
+            const language = selected === 'auto' ? idriveLanguage : selected;
+            setRuntimeTranslations(locales[language] || null);
+            ui.text('BTN_SETTINGS', translate('Settings'));
+            const component = ui.comp('SET_LANGUAGE');
+            if (component && typeof component.getStringBundle === 'function') {
+                component.getStringBundle().setStrings({ SID_DPF_SET_LANGUAGE: translate('Language') })
+                    .catch(error => log.warn('DPF language label: ' + error.message));
+            }
+
+        }
+        applyLanguage();
+        ctx.settings.onChange(key => { if (key === 'language') applyLanguage(); });
+        require('./idrive-language').watch(ctx, language => {
+            idriveLanguage = language;
+            if (ctx.settings.get('language') === 'auto') applyLanguage();
+        });
+
         const link = new ReadOnlyDiag(ctx.signals, log, {
             gapMs: 50, busyMs: 500,
             onDebug: message => {
@@ -269,6 +291,7 @@ mgu.run({
 
             const newsX = 1120;
             const milestones = [
+                ['0.1.31', 'All 22 iDrive languages'],
                 ['0.1.26', 'Cluster regeneration messages'],
                 ['0.1.24', 'Equal-height gauges on Overview'],
                 ['0.1.23', 'Milestones and clearer regen estimate'],
@@ -328,15 +351,27 @@ mgu.run({
         function render() {
             const t = ctx.theme();
             const cv = ctx.canvas(W, H).clear(t.bg);
+            const drawText = cv.text.bind(cv);
+            cv.text = (value, x, y, size, colour, options) => {
+                const opts = options || {};
+                const text = opts.literal ? String(value) : translate(value);
+                let available = opts.align === 'center' ? Math.min(x, W - x) * 2 - 32 : W - x - 24;
+                if (page === 'about') available = x >= 1120 ? W - x - 24 : x === 640 ? 880 : 150;
+                else if (page === 'detail' && size === 18) available = 700;
+                else if (page === 'overview' && x > 1200) available = W - x - 24;
+                const measured = cv.textWidth(text, size, { ...opts, literal: true });
+                const fitted = measured > available ? size * available / measured : size;
+                return drawText(text, x, y, fitted, colour, { ...opts, literal: true });
+            };
 
             if (page === 'detail') {
                 renderDetail(cv, t);
-                G.frame(cv, t, TABS, 1, []);
+                G.frame(cv, t, TABS.map(label => translate(label)), 1, []);
                 return ui.image('MAIN_GFX', cv);
             }
             if (page === 'about') {
                 renderAbout(cv, t);
-                G.frame(cv, t, TABS, 2, []);
+                G.frame(cv, t, TABS.map(label => translate(label)), 2, []);
                 return ui.image('MAIN_GFX', cv);
             }
 
@@ -355,7 +390,7 @@ mgu.run({
                 const reading = readings[key];
                 const value = reading ? (unit === 'km' ? reading.raw / 1000 : reading.value) : null;
                 G.segBar(cv, t, x, y, columnWidth, gaugeHeight, {
-                    label, value, unit, decimals,
+                    label: translate(label), value, unit, decimals,
                     min: 0, max, step,
                     ramp: 'hot', limit: max,
                     zones: [
@@ -413,7 +448,7 @@ mgu.run({
                     statusX + 18, 438, 18, loading ? t.dim : t.warn, { font: 'bold' });
             }
 
-            G.frame(cv, t, TABS, 0, []);
+            G.frame(cv, t, TABS.map(label => translate(label)), 0, []);
             return ui.image('MAIN_GFX', cv);
         }
 

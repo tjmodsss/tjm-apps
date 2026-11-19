@@ -2,7 +2,7 @@
   "id": "f30_cluster",
   "title": "TJM F30 Cluster",
   "description": "Instrument cluster themes after the F-series 6WB look: Comfort, Sport and Eco Pro, following the drive mode",
-  "version": "0.7.20",
+  "version": "0.7.21",
   "vendor": "TJM",
   "loggingId": "OB32",
   "iconGlyph": "F30",
@@ -17,7 +17,9 @@
       "statusLateralAccelerationMassCenter": "rs"
     },
     "de.bmw.infotainment.vehicle.Vehicle2": {
-      "statusCarSpeed2": "rs"
+      "statusCarSpeed2": "rs",
+      "statusDisplayedCCMessage": "rs",
+      "_displayedCC": "research3/mc: getter 61, notifier 32829 (non-zero; Twin Dial 0.1.0 installs the same declaration). Read only; subscribed only when config.ccDisplayed is set (null here)."
     },
     "de.bmw.infotainment.drivingexcitement.FES": {
       "statusSwitchDriveDynamicSport2": "rs",
@@ -69,6 +71,20 @@
     "de.bmw.dass.driverassistanceapplications.TrafficSignDisplayControl": {
       "displaySpeedLimitAndNoPassingRestriction": "s",
       "_optional": "the speed-limit sign and the no-overtaking sign in one struct (config.sign); notifier only, no getter"
+    },
+    "de.bmw.dass.TrafficSignRecognition": {
+      "_instances": "1",
+      "_broadcasts": [
+        "TrafficSignRecognition"
+      ],
+      "_about": "car-fix CF2: the speed limit as the owner's car sends it (2026-11-18, signal_probe set S13): an EVENT (eventId 32769, service 13632), so _broadcasts; no getter, no setter, no method. config.sign.tsr (shared/limit_src.js): presentClassLimitSpeed x 5 = km/h. TrafficSignDisplayControl above stays the fallback."
+    },
+    "de.bmw.environmentalmodel.SignRecognitionFrontCamera": {
+      "_instances": "1",
+      "_broadcasts": [
+        "TrafficSignRecognitionFrontCamera"
+      ],
+      "_about": "car-fix CF2: the front camera's own sign event, a second witness (config.sign.camera): logged as numbers ('limit: camera ...'), never drawn. Read only."
     },
     "de.bmw.infotainment.fasus.FASuS": {
       "statusNextSpeedLimitRecognition": "rs",
@@ -172,6 +188,11 @@
           "Settings"
         ],
         [
+          "button",
+          "BTN_DIAG",
+          "Діагностика"
+        ],
+        [
           "text",
           "STATUS_LOG",
           ""
@@ -188,7 +209,45 @@
         "g20",
         "inComfort",
         "inSport",
-        "inEco"
+        "inEco",
+        "diagRelease",
+        "diagShownNow",
+        "diagSceneTex",
+        "diagMbGap",
+        "diagMbCover",
+        "diagMbRebuild"
+      ]
+    },
+    {
+      "name": "DIAG",
+      "kind": "menu",
+      "title": "Діагностика",
+      "settings": "placed",
+      "items": [
+        [
+          "setting",
+          "diagRelease"
+        ],
+        [
+          "setting",
+          "diagShownNow"
+        ],
+        [
+          "setting",
+          "diagSceneTex"
+        ],
+        [
+          "setting",
+          "diagMbGap"
+        ],
+        [
+          "setting",
+          "diagMbCover"
+        ],
+        [
+          "setting",
+          "diagMbRebuild"
+        ]
       ]
     },
     {
@@ -555,6 +614,90 @@
           "Off"
         ]
       ]
+    },
+    {
+      "key": "diagRelease",
+      "label": "Release a stuck check-control message",
+      "type": "bool",
+      "default": false,
+      "_about": "B7, the Діагностика menu (shared/diag_settings.js; what each setting writes is config.diag, all off = the keys as app.json has them): research3/MC config.ccActive.release"
+    },
+    {
+      "key": "diagShownNow",
+      "label": "'Shown now' source",
+      "type": "choice",
+      "default": "off",
+      "options": [
+        [
+          "off",
+          "Displayed (car-verified)"
+        ],
+        [
+          "active",
+          "Active (0.7.20)"
+        ]
+      ],
+      "_about": "car-fix CF1: replaces research3/MC's diagDisplayed (off / log / use). Off = config.ccActive.source 'displayed', the car-verified 'shown now' (Vehicle2 statusDisplayedCCMessage); 'active' gives back 0.7.20's KombiIF statusActiveCCMessage path (stuck on 65535 on the owner's car). Applies in place."
+    },
+    {
+      "key": "diagSceneTex",
+      "label": "Lighter scene textures",
+      "type": "choice",
+      "default": "off",
+      "options": [
+        [
+          "off",
+          "Off"
+        ],
+        [
+          "r8",
+          "R8"
+        ],
+        [
+          "etc2",
+          "ETC2"
+        ]
+      ],
+      "_about": "research3/MT config.sceneTex: the scene textures are dropped and the theme is built again when it changes"
+    },
+    {
+      "key": "diagMbGap",
+      "label": "No layer over the gear gap",
+      "type": "bool",
+      "default": false,
+      "_about": "research3/MB config.mbGap: every layer rectangle is cut round the gear letter's gap (the layout is built again)"
+    },
+    {
+      "key": "diagMbCover",
+      "label": "Cover over the gear gap",
+      "type": "choice",
+      "default": "off",
+      "options": [
+        [
+          "off",
+          "Off"
+        ],
+        [
+          "clear",
+          "Clear"
+        ],
+        [
+          "black",
+          "Black"
+        ],
+        [
+          "grey",
+          "Grey"
+        ]
+      ],
+      "_about": "research3/MB config.mbCover: one more layer over the gear gap (the layout is built again)"
+    },
+    {
+      "key": "diagMbRebuild",
+      "label": "Rebuild on every drive-mode change",
+      "type": "bool",
+      "default": false,
+      "_about": "research3/MB config.mbRebuild.onMode"
     }
   ],
   "config": {
@@ -944,7 +1087,53 @@
       "_hold": "The stock cluster animates the end of a limit and then shows the new one, and a sign is essentially always present (the owner, 2026-11-15), so there is no \"hide the sign\" state. holdMs keeps the last sign on while the car briefly says nothing; the animation itself lands in shared/hud.js _signShow().",
       "_timings": "changeFlashMs / flashPeriodMs are docs/G20-DESIGN-SPEC.md's PLACEHOLDERS for the flash after a limit changes - there is no video in the reference set, so nothing was measured. They are parameters only; nothing acts on them yet.",
       "_empty": "docs/G20-DESIGN-SPEC.md: BMW's empty sign is THREE DASHES, 8.8 x 4.4 at pitch 13, not a blank disc. That is WBSIGN's u_show state 3, which this package already drives; whether the shader draws dashes is the drawing package's to check.",
-      "_mph": "The unit is read and recorded ({{limitUnit}}, the 'sign:' log line) but changes nothing on screen: the sign stays the round one with the number, in every country (the owner, 2026-11-15)."
+      "_mph": "The unit is read and recorded ({{limitUnit}}, the 'sign:' log line) but changes nothing on screen: the sign stays the round one with the number, in every country (the owner, 2026-11-15).",
+      "tsr": {
+        "iface": "de.bmw.dass.TrafficSignRecognition",
+        "event": "TrafficSignRecognition",
+        "instance": "1",
+        "classPath": [
+          "presentClassLimitSpeed"
+        ],
+        "factor": 5,
+        "none": [
+          0,
+          29,
+          253,
+          254,
+          255
+        ],
+        "end": [],
+        "warnPath": [
+          "controlSLIWarning"
+        ],
+        "warnMap": {
+          "1": 1,
+          "2": 2
+        },
+        "unitPath": [
+          "unitOfMeasurementSpeedLimit"
+        ],
+        "mph": [
+          1,
+          "MPH"
+        ],
+        "withdrawalPath": [
+          "presentWithdrawalLimitSpeed"
+        ],
+        "endOn": [],
+        "staleMs": 3000
+      },
+      "camera": {
+        "iface": "de.bmw.environmentalmodel.SignRecognitionFrontCamera",
+        "event": "TrafficSignRecognitionFrontCamera",
+        "instance": "1"
+      },
+      "order": [
+        "tsr",
+        "field"
+      ],
+      "_tsr": "car-fix CF2 (the car session of 2026-11-18): the field above never arrives on the owner's car (its provider never comes up); the limit comes as the EVENT de.bmw.dass.TrafficSignRecognition.TrafficSignRecognition (service 13632, instance 1, about 2 a second): presentClassLimitSpeed x 5 = km/h (class 8 with a 40 sign, 6 with a 30, 10 = 50 in town). shared/limit_src.js reads it into the same sign shape; 'order' says which source speaks first while it is live (the event, then this field as the fallback; an event older than staleMs is not live). 'none' classes draw no sign: 0 (FASuS's AUFHEBUNG_ALLES), 29 (its chime request, not a speed), 253..255 (n/a, unfilled); warnMap: controlSLIWarning 0 / 1 seen, 1 = over the limit is a hypothesis; mph: unitOfMeasurementSpeedLimit 1 = MPH by FASuS's enum, anything else km/h; endOn (presentWithdrawalLimitSpeed values that mean the derestriction sign; 2 = AUFHEBUNG by the enum) is empty until the car shows one. 'camera' (the front camera's own event) is a witness: logged ('limit: camera ...'), never drawn."
     },
     "ccm": {
       "iface": "de.bmw.infotainment.KombiInterface_2",
@@ -1138,8 +1327,23 @@
         "keepColors": [
           "red"
         ]
-      }
+      },
+      "_release": "research3/mc (docs/research3/MC-REPORT.md), OFF while absent: 0.7.20 exactly. When set, an object {deferValues, deferControls, leftList, noEntryMs, witness, then} that says when the 'shown now' value is NO VERDICT, and the list then decides - then 'listed' (default: shown while ccList lists any entry outside ignoreIds, never closes over a listed message) or 'heuristic' (the fallback above). The report's recommended value for the next install, after the log read: {\"deferValues\": [65535], \"leftList\": true}. noEntryMs can hide a message ccList never carries (case S5) and is not recommended. Every change logs 'active cc: released to the list (...)' once, numbers only. shared/hud.js _ccRelease. car-fix CF1: it acts on the ACTIVE number only - obsolete with source displayed (Діагностика 'Release a stuck check-control message' still writes it; it acts only with the 'shown now' source setting on 'active').",
+      "source": "displayed",
+      "dead": true,
+      "unknownValues": [
+        65535
+      ],
+      "_carfix": "car-fix CF1 (docs/car-fix/CF1-REPORT.md), the owner's car 2026-11-18 (signal_probe 0.1.1, twin_dial.log): statusActiveCCMessage sat on 65535 the whole run, also while a message showed - 0.7.20's stuck window (MC's A1). dead: true - it stays declared, subscribed and logged ('active cc: ...'), it decides nothing (without dead it would count as a witness only once it CHANGED to a number outside deadValues, default [65535]). source: displayed - Vehicle2.statusDisplayedCCMessage (config.ccDisplayed) is the 'shown now' once it has given a number: 0 = nothing shown (listed entries are stored ones: BMW's panel may be covered); N with a ccList entry = that entry (our text, BMW's panel covered after 150 ms where our row draws it); N with no entry = shown, BMW's panel open (285, 926, 927, 184 on the car); unknownValues (65535, after an app start or at the end of a drive) = shown, BMW's panel open. Before displayed has spoken, 0.7.20's path (with dead: the list's fallback). 'displayed cc: ...' lines, numbers only. the Діагностика setting 'Shown now' source = Active (0.7.20) gives back 0.7.20's path. shared/hud.js _ccListEval."
     },
+    "ccDisplayed": {
+      "iface": "de.bmw.infotainment.vehicle.Vehicle2",
+      "field": "statusDisplayedCCMessage",
+      "numberPath": [
+        "statusNumberCheckControlMessageDisplay"
+      ]
+    },
+    "_ccDisplayed": "car-fix CF1: ON - the 'shown now' source (config.ccActive.source displayed), subscribed at start (getter 61, declared under signals). research3/mc's 'use' / release.witness pair is obsolete with it (use true still works with source active). Was null (research3/mc: the second witness, off).",
     "ccList": {
       "_about": "Several messages at once: the car cycles through this list, and ours steps through it on the same clock (the owner, 2026-11-15). Each element carries a short name and a colour; config.ccm.cycleMs is how long each one is shown. The stock order and timing are being measured in docs/G20-DESIGN-SPEC.md.",
       "iface": "de.bmw.infotainment.KombiInterface_2",
@@ -1299,6 +1503,78 @@
         "2. Navigation map data, only while a route runs: de.bmw.infotainment.navigation.guiding.GuidanceEventList queryContent, union members speedLimit / speedLimitAssist and speedLimitAssistInfo on each event (cauliflowermossgrape/idrive7-apps apps/redline/nav.js line 134, kit/tools/fixtures/redline-nav-carplay-2026-11-09.txt: speedLimitAssistInfo {nil: NO_VALUE} on a CarPlay route). Upcoming limits, not the sign in force; a method, not a field: not usable as config.limit as is.",
         "3. Unverified guess: a field of the cluster's or the HUD's own data (KombiIF / KombiInterface_2 already carry the cluster's range and check-control list). If the head unit draws BMW's HUD content (cluster-render's HUD target suggests it can), its catalogue must carry the sign; the name is unknown."
       ]
+    },
+    "diag": {
+      "_about": "B7, the Діагностика menu (screen DIAG, shared/diag_settings.js): each setting writes the config paths named here while it is ON (all OFF by default = the keys as this file has them, put back when a setting goes off). A path is dotted; a choice lists its options. car-fix CF1: diagShownNow 'active' gives back 0.7.20's 'shown now' source (it replaced research3/MC's diagDisplayed, whose witness is the source now). The values are the ones the research3 reports and their test files name (tools/research3/mb/exp/f30-gap.json).",
+      "settings": {
+        "diagRelease": {
+          "on": {
+            "ccActive.release": {
+              "deferValues": [
+                65535
+              ],
+              "leftList": true
+            }
+          }
+        },
+        "diagShownNow": {
+          "options": {
+            "active": {
+              "ccActive.source": "active"
+            }
+          }
+        },
+        "diagSceneTex": {
+          "options": {
+            "r8": {
+              "sceneTex": "r8"
+            },
+            "etc2": {
+              "sceneTex": "etc2"
+            }
+          }
+        },
+        "diagMbGap": {
+          "on": {
+            "mbGap": {
+              "rect": [
+                1380,
+                660,
+                1460,
+                720
+              ],
+              "conn": {
+                "row_b2": 3,
+                "msa": 3,
+                "oilt": 3
+              },
+              "z": {
+                "oilt": 2
+              }
+            }
+          }
+        },
+        "diagMbCover": {
+          "options": {
+            "clear": {
+              "mbCover": "clear"
+            },
+            "black": {
+              "mbCover": "black"
+            },
+            "grey": {
+              "mbCover": "grey"
+            }
+          }
+        },
+        "diagMbRebuild": {
+          "on": {
+            "mbRebuild": {
+              "onMode": true
+            }
+          }
+        }
+      }
     },
     "menu": {
       "hideModeRows": true,

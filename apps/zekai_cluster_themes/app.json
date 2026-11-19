@@ -2,7 +2,7 @@
   "id": "zekai_cluster_themes",
   "title": "TJM Instrument Themes",
   "vendor": "TJM",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "loggingId": "OB34",
   "description": "Persistent, auto-starting instrument themes for BMW iDrive 7. Choose a theme in the app; select BMW original to turn the overlay off.",
   "autostart": true,
@@ -62,6 +62,7 @@
       "_optional": "Outside temperature"
     },
     "de.bmw.infotainment.hmi.hmimediastate.HmiMediaState": {
+      "_instances": "HMI_CID",
       "playerMetadata": "rs",
       "_optional": "Front-seat Now playing title and artist"
     }

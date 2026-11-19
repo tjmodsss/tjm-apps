@@ -10,6 +10,8 @@
 const mgu = require('./kit/mgu');
 const G = require('./kit/gauges');
 const Car = require('./kit/car');
+const Language = require('./language');
+const { t: translate } = require('./kit/i18n');
 const { withAlpha } = require('./kit/canvas');
 const TransmissionReader = require('./transmission');
 const turboIconPreview = require('./turbo-icon-preview');
@@ -23,6 +25,7 @@ const ENGINE_RUNNING_RPM = 300;
 mgu.run({
     async start(ctx) {
         const { ui, log } = ctx;
+        const getLanguage = Language.start(ctx);
         let page = 0;
         const rasterRuns = src => {
             const d = src.d, w = src.w, h = src.h;
@@ -67,6 +70,13 @@ mgu.run({
             previousRuns.forEach(keepRun);
             return runs;
         };
+        function fitText(cv, text, x, y, size, color, width, options = {}) {
+            while (size > 12 && cv.textWidth(text, size, options) > width) size--;
+            cv.text(text, x, y, size, color, options);
+        }
+
+        let aboutScroll = 0;
+        let maxAboutScroll = 0;
         let aboutLogoRuns;
         let aboutLayers;
         function renderAbout(cv, t) {
@@ -108,16 +118,19 @@ mgu.run({
             aboutLayers.forEach(({ runs, x, y, width, height, label, feedback }) => {
                 if (feedback) drawRect(x, y, width, height, 0xffffffff);
                 drawRuns(runs, x, y);
-                if (label) cv.text(label, x + width / 2, 512, 15, t.text, { align: 'center' });
+                if (label) fitText(cv, label, x + width / 2, 512, 15, t.text, 155, { align: 'center' });
             });
             cv.text('OIL SERVICE ASSISTANT', 640, 225, 30, t.text,
                 { align: 'center', font: 'bold', spacing: 2.5 });
-            cv.text('Monitors engine oil, coolant and transmission oil temperatures.', 640, 258, 19, t.dim, { align: 'center' });
-            cv.text('Shows live estimates for reaching target temperatures.', 640, 285, 19, t.dim, { align: 'center' });
-            cv.text('Saves warm-up history locally for comparison with previous sessions.', 640, 312, 19, t.dim, { align: 'center' });
+            fitText(cv, 'Monitors engine oil, coolant and transmission oil temperatures.', 640, 258, 19, t.dim, 890, { align: 'center' });
+            fitText(cv, 'Shows live estimates for reaching target temperatures.', 640, 285, 19, t.dim, 890, { align: 'center' });
+            fitText(cv, 'Saves warm-up history locally for comparison with previous sessions.', 640, 312, 19, t.dim, 890, { align: 'center' });
 
             const newsX = 1120;
             const milestones = [
+                ['0.2.50', 'Scrollable release history'],
+                ['0.2.49', 'Settings tab in Standard layout'],
+                ['0.2.46', 'App language in Settings'],
                 ['0.2.45', 'Aligned the cluster message with DPF Status'],
                 ['0.2.44', 'Raised the oil warm-up message in the map area'],
                 ['0.2.43', 'Transparent message at the cluster bottom edge'],
@@ -148,54 +161,26 @@ mgu.run({
                 ['0.1.0', 'First standalone OSA app']
             ];
             cv.text("WHAT'S NEW", newsX, 80, 22, t.text, { font: 'bold' });
+            const top = 94, bottom = 498, rowHeight = 24;
+            maxAboutScroll = Math.max(0, 105 + (milestones.length - 1) * rowHeight - bottom);
+            aboutScroll = Math.min(aboutScroll, maxAboutScroll);
+            cv.clip(newsX, top, 430, bottom - top);
             milestones.forEach(([version, label], index) => {
-                const y = 104 + index * 12;
+                const y = 105 + index * rowHeight - aboutScroll;
+                if (y < top || y > bottom) return;
                 cv.text(version, newsX, y, 14, t.text, { font: 'bold' });
-                cv.text(label, newsX + 66, y, 14, t.dim);
+                const options = { literal: true };
+                const text = translate(label);
+                const measured = cv.textWidth(text, 14, options);
+                cv.text(text, newsX + 66, y, Math.min(14, 14 * 362 / Math.max(1, measured)), t.dim, options);
             });
-
-            cv.text('CLUSTER TEST', newsX, 390, 17, t.text, { font: 'bold' });
-            const phase = testPhase();
-            const passive = lastTestMode === 'clusterPassiveTest';
-            const lower = lastTestMode === 'clusterLowerTest';
-            const instructions = passive
-                ? ['Observation: baseline', 'Observation: watching BMW display', 'Observation: final capture']
-                : ['1/3 Before message', lower ? '2/3 Lower message on' : '2/3 Upper message on', '3/3 Message off'];
-            cv.text(phase < 0 ? (testResult ? 'Capture complete' : 'Start the test from Settings') :
-                instructions[phase] + ' (' + Math.ceil((testStarted + testEnds[phase] - mono()) / 1000) + ' s)',
-                newsX, 410, 14, t.dim);
-            const lines = clusterSlots.map((snapshot, index) => {
-                const label = (passive ? ['Start', 'During', 'End'] : ['Before', 'On', 'After'])[index];
-                if (!snapshot.size) return label + ': no slot data yet';
-                const changes = Array.from(snapshot, ([slot, states]) => {
-                    const before = clusterSlots[0].get(slot);
-                    const changed = index === 0 ? ['0x100', '0x200', '0x203'].includes(slot) || states.size > 1 :
-                        states.size > 1 || !before || [...states].some(state => !before.has(state));
-                    return changed ? slot + ' ' + [...states].join('/') : '';
-                }).filter(Boolean);
-                if (index > 0) {
-                    for (const slot of clusterSlots[0].keys()) {
-                        if (!snapshot.has(slot)) changes.push(slot + ' gone');
-                    }
-                }
-                const slotOrder = ['0x200', '0x203', '0x100'];
-                const priority = (line) => {
-                    const position = slotOrder.indexOf(line.split(' ')[0]);
-                    return position < 0 ? slotOrder.length : position;
-                };
-                changes.sort((a, b) => priority(a) - priority(b));
-                return label + ': ' + (changes.join(', ') || 'no slot change');
-            });
-            if (lastTestMode) lines.push('Check Control events: ' + checkControlCount +
-                (checkControlLast === null ? '' : ' | last at +' + checkControlLast + ' s'));
-            for (const prefix of ['Panel', 'Layer', 'Renderer']) {
-                const events = clusterEvents.get(prefix);
-                if (events && events.size) lines.push(prefix + ': ' + [...events].join(' / '));
+            cv.noclip();
+            const bar = { x: 1563, y: top, w: 6, h: bottom - top };
+            if (maxAboutScroll > 0) {
+                const thumb = bar.h * bar.h / (bar.h + maxAboutScroll);
+                cv.roundRect(bar.x, bar.y + aboutScroll / maxAboutScroll * (bar.h - thumb), bar.w, thumb, 3, t.dim);
             }
-            lines.forEach((line, index) => {
-                while (cv.textWidth(line, 13) > 428) line = line.slice(0, -1);
-                cv.text(line, newsX, 427 + index * 13, 13, t.text);
-            });
+            cv.scroll = { y: top, bar };
 
             cv.text('Developed by dzooky@bmrmodz', 640, aboutLayers.length > 2 ? 363 : 372, 18, t.text, { align: 'center', font: 'bold' });
         }
@@ -405,7 +390,7 @@ mgu.run({
             if (demo || !G.isNum(oil)) return null;
             const message = warmupMessage(oil, oilWarmTarget(), mono());
             return ctx.settings.get('oilCluster') ? message : null;
-        }, recordCluster, () => testPhase() >= 0, () => testMode === 'clusterLowerTest');
+        }, recordCluster, () => testPhase() >= 0, () => testMode === 'clusterLowerTest', getLanguage);
         const transmission = new TransmissionReader(ctx);
         let outsideTemp = null;
         ctx.signals.watch('de.bmw.infrastructure.EnvironmentalInformation', '1', {
@@ -476,7 +461,7 @@ mgu.run({
             return { state: 'warming', min: (target - temp) / Math.max(0.15, rate), rate, est: w < 0.5 };
         }
         function etaRow(cv, t, y, label, e, target, historical) {
-            cv.text(label, 952, y, 22, t.dim, { font: 'bold', spacing: 1.5 });
+            fitText(cv, label, 952, y, 22, t.dim, 360, { font: 'bold', spacing: 1 });
             let big, color = t.text, unit = '', right = '';
             if (e.state === 'ready') { big = 'READY'; color = t.ok; }
             else if (e.state === 'off') { big = 'ENGINE OFF'; color = t.dim; }
@@ -485,7 +470,8 @@ mgu.run({
             else { big = '--'; color = t.dim; }
             const bw = cv.text(big, 952, y + 54, unit ? 52 : 38, color, { font: unit || big === '--' ? 'num' : 'bold', spacing: unit ? 0 : 1 });
             if (unit) cv.text('min', 960 + bw, y + 54, 25, t.dim);
-            cv.text('target ' + Math.round(target) + '°C', 1552, y, 21, t.dim, { align: 'right' });
+            const targetText = translate('Target temperature') + ': ' + Math.round(target) + ' °C';
+            fitText(cv, targetText, 1552, y, 21, t.dim, 220, { align: 'right' });
             if (right) cv.text(right, 1552, y + 48, 21, t.dim, { align: 'right' });
             if (historical !== null && historical !== undefined) {
                 const histText = '(' + Math.max(1, Math.round(historical)) + ' min)';
@@ -494,7 +480,7 @@ mgu.run({
             if (e.state === 'warming' && e.est) cv.text('estimate', 1552, y + 48, 18, t.dim, { align: 'right' });
         }
 
-        function tbdTab(p) { return p >= 0 && p <= 3 ? p : -1; }
+        const tabs = ['Engine', 'Transmission', 'Statistics', 'About'];
 
         function render() {
             const t = ctx.theme();
@@ -508,13 +494,13 @@ mgu.run({
 
             if (page === 0) {
                 const oil = G.isNum(d.oil) ? d.oil : null;
-                const status = oil === null ? 'NO OIL TEMP' : (d.demo ? 'DEMO DATA' : 'LIVE');
+                const status = oil === null ? 'Oil temperature unavailable' : (d.demo ? 'DEMO DATA' : 'LIVE');
                 const statusColor = oil === null ? t.dim : (d.demo ? t.warn : t.ok);
 
                 // Engine page keeps BOTH Warm-Up temperature gauges:
                 // engine oil and engine coolant. Transmission page is oil-only.
                 G.segBar(cv, t, 24, 44, 880, 250, {
-                    label: 'Oil',
+                    label: 'Engine oil',
                     value: oil,
                     unit: '°C',
                     decimals: 0,
@@ -549,8 +535,8 @@ mgu.run({
                 const historical = similarHistory(oilTarget, coolantTarget);
                 G.panel(cv, t, 928, 44, 648, 468, null);
                 cv.roundRect(952, 70, 600, 60, 10, withAlpha(statusColor, 0.22));
-                cv.text(status, 1252, 110, status.length > 14 ? 30 : 38, statusColor, {
-                    align: 'center', font: 'bold', spacing: 3
+                fitText(cv, status, 1252, 110, status.length > 14 ? 30 : 38, statusColor, 550, {
+                    align: 'center', font: 'bold', spacing: 2
                 });
                 cv.text('OUTSIDE TEMPERATURE', 952, 170, 22, t.dim, { font: 'bold', spacing: 1.5 });
                 const outsideText = G.isNum(outsideTemp) ? ((outsideTemp > 0 ? '+' : '') + outsideTemp.toFixed(1)) : '--';
@@ -563,7 +549,7 @@ mgu.run({
                 const live = transmission.fresh;
                 const value = live ? transmission.temp : null;
                 const status = live ? 'LIVE' :
-                    transmission.statusText === 'LIVE' ? 'LINK STALE' : transmission.statusText;
+                    transmission.statusText === 'LIVE' ? 'LINK STALE' : transmission.statusText.replace('IDENTIFIED · 0F25D0', translate('Identified') + ' · 0F25D0');
                 const statusColor = live ? t.ok : t.dim;
 
                 // Match the Engine oil page layout; only the data source and
@@ -587,8 +573,8 @@ mgu.run({
 
                 G.panel(cv, t, 928, 44, 648, 468, null);
                 cv.roundRect(952, 70, 600, 60, 10, withAlpha(statusColor, 0.22));
-                cv.text(status, 1252, 110, status.length > 14 ? 30 : 38, statusColor, {
-                    align: 'center', font: 'bold', spacing: 3
+                fitText(cv, status, 1252, 110, status.length > 14 ? 30 : 38, statusColor, 550, {
+                    align: 'center', font: 'bold', spacing: 2
                 });
 
                 cv.text('TRANSMISSION OIL TEMPERATURE', 952, 170, 22, t.dim, {
@@ -606,18 +592,20 @@ mgu.run({
                     cv.text('ATF HEAT-UP · TO 30°C', 952, 345, 20, t.dim, { font: 'bold', spacing: 1 });
                     const warmAvg = atfAverage('atf-warm');
                     const warmElapsed = atfWarmSession ? Math.max(1, Math.round((mono() - atfWarmSession.start) / 60000)) : null;
-                    cv.text(atfWarmSession ? (warmElapsed + ' min elapsed') : (warmAvg === null ? 'COLLECTING DATA' : 'avg ' + Math.round(warmAvg) + ' min'), 952, 385, 26, atfWarmSession ? t.text : t.dim, { font: 'num' });
+                    cv.text(atfWarmSession ? (translate('Elapsed') + ': ' + warmElapsed + ' min') :
+                        (warmAvg === null ? 'COLLECTING DATA' : translate('Average') + ': ' + Math.round(warmAvg) + ' min'), 952, 385, 26, atfWarmSession ? t.text : t.dim);
                 } else if (atfMode === 'cool') {
                     cv.text('ATF COOL-DOWN · TO 30°C', 952, 345, 20, t.dim, { font: 'bold', spacing: 1 });
                     const coolAvg = atfAverage('atf-cool');
                     const coolElapsed = atfCoolSession ? Math.max(1, Math.round((Date.now() - atfCoolSession.startedAt) / 60000)) : null;
-                    cv.text(atfCoolSession ? (coolElapsed + ' min elapsed') : (coolAvg === null ? 'COLLECTING DATA' : 'avg ' + Math.round(coolAvg) + ' min'), 952, 385, 26, atfCoolSession ? t.text : t.dim, { font: 'num' });
+                    cv.text(atfCoolSession ? (translate('Elapsed') + ': ' + coolElapsed + ' min') :
+                        (coolAvg === null ? 'COLLECTING DATA' : translate('Average') + ': ' + Math.round(coolAvg) + ' min'), 952, 385, 26, atfCoolSession ? t.text : t.dim);
                 } else {
                     cv.text('SERVICE TEMPERATURE MONITOR', 952, 345, 20, t.dim, { font: 'bold', spacing: 1 });
                     cv.text('HEAT <30°C  ·  COOL >40°C + ENGINE OFF', 952, 385, 20, t.dim);
                 }
                 cv.text('One service mode at a time · HEAT / COOL', 952, 445, 18, t.dim);
-                if (transmission.error) cv.text(transmission.error, 952, 475, 17, t.warn, { maxWidth: 590 });
+                if (transmission.error) fitText(cv, transmission.error, 952, 475, 17, t.warn, 590);
             } else if (page === 2) {
                 G.panel(cv, t, 24, 44, 1552, 468, null);
                 const statsHistory = history.filter((x) => x.oilTarget === oilTarget && x.coolantTarget === coolantTarget);
@@ -626,18 +614,18 @@ mgu.run({
                 cv.text(String(statsHistory.length), 64, 205, 42, t.text, { font: 'num' });
                 const avgOil = statsHistory.length ? statsHistory.reduce((s, x) => s + x.oilMin, 0) / statsHistory.length : null;
                 const avgCoolant = statsHistory.length ? statsHistory.reduce((s, x) => s + x.coolantMin, 0) / statsHistory.length : null;
-                cv.text('OIL AVERAGE', 300, 145, 18, t.dim, { font: 'bold' });
+                fitText(cv, 'OIL AVERAGE', 300, 145, 18, t.dim, 247, { font: 'bold' });
                 cv.text(avgOil === null ? '--' : Math.round(avgOil) + ' min', 300, 205, 32, avgOil === null ? t.dim : t.text, { font: 'num' });
                 cv.text('COOLANT AVERAGE', 570, 145, 18, t.dim, { font: 'bold' });
                 cv.text(avgCoolant === null ? '--' : Math.round(avgCoolant) + ' min', 570, 205, 32, avgCoolant === null ? t.dim : t.text, { font: 'num' });
                 cv.text('TRANSMISSION ATF HISTORY', 64, 285, 27, t.text, { font: 'bold', spacing: 2 });
                 const warmRows = atfHistory.filter((x) => x.kind === 'atf-warm');
                 const coolRows = atfHistory.filter((x) => x.kind === 'atf-cool');
-                cv.text('WARM-UP RECORDS', 64, 345, 18, t.dim, { font: 'bold' });
+                fitText(cv, 'WARM-UP RECORDS', 64, 345, 18, t.dim, 220, { font: 'bold' });
                 cv.text(String(warmRows.length), 64, 400, 30, t.text, { font: 'num' });
                 cv.text('AVERAGE TO 30°C', 300, 345, 18, t.dim, { font: 'bold' });
                 cv.text(atfAverage('atf-warm') === null ? '--' : Math.round(atfAverage('atf-warm')) + ' min', 300, 400, 30, t.text, { font: 'num' });
-                cv.text('COOL-DOWN RECORDS', 700, 345, 18, t.dim, { font: 'bold' });
+                fitText(cv, 'COOL-DOWN RECORDS', 700, 345, 18, t.dim, 244, { font: 'bold' });
                 cv.text(String(coolRows.length), 700, 400, 30, t.text, { font: 'num' });
                 cv.text('AVERAGE TO 30°C', 960, 345, 18, t.dim, { font: 'bold' });
                 cv.text(atfAverage('atf-cool') === null ? '--' : Math.round(atfAverage('atf-cool')) + ' min', 960, 400, 30, t.text, { font: 'num' });
@@ -646,21 +634,47 @@ mgu.run({
                 renderAbout(cv, t);
             }
 
-            G.frame(cv, t, ['Engine', 'Transmission', 'Statistics', 'About'], tbdTab(page), []);
+            if (cv.standardSettingsTab) {
+                cv.tabInfo = { tabs, sel: page, badges: [] };
+                G.frame(cv, t, ['Engine', 'Transmission', 'Statistics', 'Settings', 'About'],
+                    page === 3 ? 4 : page, []);
+            } else {
+                cv.tabInfo = null;
+                G.frame(cv, t, tabs, page, []);
+            }
             return ui.image('MAIN_GFX', cv);
         }
+
+        ctx.onScroll(delta => {
+            if (page !== 3) return false;
+            const next = Math.max(0, Math.min(maxAboutScroll, aboutScroll + delta));
+            if (next === aboutScroll) return false;
+            aboutScroll = next;
+            return true;
+        });
 
         const switchPage = (next) => {
             page = (next + 4) % 4;
             return render();
         };
 
-        ui.onClick('BTN_PAGE', () => switchPage(page + 1));
-        ui.onClick('BTN_PREV', () => switchPage(page + 2));
+        function pageBy(direction) {
+            if (ctx.settings.get('layout') === 'standard') {
+                if (ctx.display.sheet && ctx.display.sheet.settings) {
+                    ctx.display.closeSheet(false);
+                    return switchPage(direction > 0 ? 3 : 2);
+                }
+                if ((page === 2 && direction > 0) || (page === 3 && direction < 0)) {
+                    ctx.display._click('BTN_SETTINGS');
+                    return;
+                }
+            }
+            return switchPage(page + direction);
+        }
+        ui.onClick('BTN_PAGE', () => pageBy(1));
+        ui.onClick('BTN_PREV', () => pageBy(-1));
         ctx.onTab((i) => {
-            // Display maps the visual header index back to the app tab index;
-            // App tabs map directly; Test is tab 3 and About is tab 4.
-            if (i !== page && i >= 0 && i <= 4) return switchPage(i);
+            if (i !== page && i >= 0 && i < tabs.length) return switchPage(i);
         });
 
         ui.onVisible((name, on) => {

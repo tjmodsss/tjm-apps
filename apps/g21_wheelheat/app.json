@@ -1,8 +1,8 @@
 {
   "id": "g21_wheelheat",
   "title": "TJM Heating Comfort",
-  "description": "Automatic seat and steering-wheel heating with adjustable settings, manual controls, and diagnostic logs.",
-  "version": "0.4.20",
+  "description": "Automatic seat and steering-wheel heating with control-unit detection (BDC or seat modules), adjustable settings, manual controls, and diagnostic logs. Beta.",
+  "version": "0.5.2",
   "mguAppStartType": "autostart",
   "vendor": "TJM",
   "loggingId": "OB1B",
@@ -65,6 +65,10 @@
         [
           "BTN_QR_REFRESH",
           "Refresh session QR snapshot"
+        ],
+        [
+          "BTN_DETECT",
+          "Re-detect control units"
         ]
       ]
     }

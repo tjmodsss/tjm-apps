@@ -2,7 +2,7 @@
   "id": "dpf",
   "title": "TJM DPF Status",
   "description": "Read-only diesel particulate filter status monitoring",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "vendor": "TJM",
   "loggingId": "OB03",
   "iconGlyph": "temp",
@@ -28,10 +28,115 @@
       "_broadcasts": [
         "sendTasuResponse"
       ]
+    },
+    "de.bmw.infotainment.hmi.hmicontext.HMIContext": {
+      "_optional": "Automatic iDrive language",
+      "_instances": "HMI_CID",
+      "currentDisplayLanguage": "rs"
     }
   },
   "settingsBeforeLast": true,
   "settings": [
+    {
+      "key": "language",
+      "label": "Language",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Use iDrive language"
+        ],
+        [
+          "en",
+          "English"
+        ],
+        [
+          "de",
+          "Deutsch"
+        ],
+        [
+          "es",
+          "Español"
+        ],
+        [
+          "fr",
+          "Français"
+        ],
+        [
+          "hu",
+          "Magyar"
+        ],
+        [
+          "pl",
+          "Polski"
+        ],
+        [
+          "sk",
+          "Slovenčina"
+        ],
+        [
+          "cs",
+          "Čeština"
+        ],
+        [
+          "it",
+          "Italiano"
+        ],
+        [
+          "ru",
+          "Русский"
+        ],
+        [
+          "da",
+          "Dansk"
+        ],
+        [
+          "el",
+          "Ελληνικά"
+        ],
+        [
+          "zh-CN",
+          "简体中文"
+        ],
+        [
+          "nl",
+          "Nederlands"
+        ],
+        [
+          "nb",
+          "Norsk"
+        ],
+        [
+          "pt",
+          "Português"
+        ],
+        [
+          "ro",
+          "Română"
+        ],
+        [
+          "sl",
+          "Slovenščina"
+        ],
+        [
+          "fi",
+          "Suomi"
+        ],
+        [
+          "sv",
+          "Svenska"
+        ],
+        [
+          "tr",
+          "Türkçe"
+        ],
+        [
+          "uk",
+          "Українська"
+        ]
+      ]
+    },
     {
       "key": "regenCluster",
       "label": "DPF notification on cluster",
@@ -45,5 +150,6 @@
       "type": "action",
       "hint": "Three flashes each: yellow, red and green"
     }
-  ]
+  ],
+  "settingsTabInStandard": true
 }

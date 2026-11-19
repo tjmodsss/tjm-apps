@@ -86,7 +86,7 @@ function selectedEvents(events) {
 function diagnosticText(ctx, detail) {
     const d = detail || {}, at = Number.isFinite(d.sessionStartedAt) ? d.sessionStartedAt : Date.now();
     const lines = [
-        'HEATING COMFORT SESSION DIAGNOSTIC v2',
+        'HEATING COMFORT SESSION DIAGNOSTIC v3',
         'Created: ' + new Date().toISOString(),
         'Session start: ' + new Date(at).toISOString(),
         'Session reason: ' + String(d.sessionReason || 'process start'),
@@ -102,6 +102,15 @@ function diagnosticText(ctx, detail) {
     ];
     for (const e of selectedEvents((d.events || []).filter(e => e && e.at >= at)))
         lines.push(new Date(e.at).toISOString() + ' ' + e.kind + ' ' + e.message);
+    // Read-only seat sources with complete UDS replies (SMFA/SMBF 22 D714,
+    // IHKA 22 D8DB), bounded history so manual level changes stay visible.
+    const reads = Array.isArray(d.seatReads) ? d.seatReads.slice(-10) : [];
+    lines.push('=== SEAT SOURCE READS (' + reads.length + ', oldest first, read-only) ===');
+    if (!reads.length) lines.push('none (no seat module / IHKA read in this session)');
+    for (const snap of reads) {
+        for (const line of snap.lines || []) lines.push(line);
+        if (snap.comparison) lines.push('  compare: ' + snap.comparison.verdict + ' - ' + snap.comparison.detail);
+    }
     lines.push('=== SESSION SDK ERRORS / WARNINGS ===');
     for (const e of sessionWarnings(ctx, at, 18))
         lines.push(new Date(e.at).toISOString() + ' ' + e.message);

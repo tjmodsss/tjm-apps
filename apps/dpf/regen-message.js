@@ -2,6 +2,7 @@
 
 const cluster = require('./kit/cluster-icon');
 const { Canvas } = require('./kit/canvas');
+const { t } = require('./kit/i18n');
 const WIDTH = 430;
 const HEIGHT = 76;
 const BASELINE = 47;
@@ -47,20 +48,22 @@ function draw(socket, message, frame) {
     const canvas = new Canvas(WIDTH, HEIGHT);
     if (message.text) {
         const style = { font: 'bold', literal: true };
+        const prefix = t(PREFIX);
+        const status = t(message.text);
         const longestState = Math.max(...[REQUESTED, ACTIVE, COMPLETE]
-            .map(state => canvas.textWidth(state.text, FONT_SIZE, style)));
-        const maxTextWidth = canvas.textWidth(PREFIX, FONT_SIZE, style) + longestState;
+            .map(state => canvas.textWidth(t(state.text), FONT_SIZE, style)));
+        const maxTextWidth = canvas.textWidth(prefix, FONT_SIZE, style) + longestState;
         const fontSize = maxTextWidth > WIDTH - STATE_GAP - 16
             ? Math.floor(FONT_SIZE * (WIDTH - STATE_GAP - 16) / maxTextWidth) : FONT_SIZE;
-        const prefixWidth = canvas.textWidth(PREFIX, fontSize, style);
-        const stateWidth = canvas.textWidth(message.text, fontSize, style);
+        const prefixWidth = canvas.textWidth(prefix, fontSize, style);
+        const stateWidth = canvas.textWidth(status, fontSize, style);
         const x = Math.round((WIDTH - prefixWidth - STATE_GAP - stateWidth) / 2);
         const stateX = x + prefixWidth + STATE_GAP;
         const shadow = [0, 0, 0, 190];
-        canvas.text(PREFIX, x + 1, BASELINE + 2, fontSize, shadow, style);
-        canvas.text(message.text, stateX + 1, BASELINE + 2, fontSize, shadow, style);
-        canvas.text(PREFIX, x, BASELINE, fontSize, '#ffffff', style);
-        canvas.text(message.text, stateX, BASELINE, fontSize, message.colour, style);
+        canvas.text(prefix, x + 1, BASELINE + 2, fontSize, shadow, style);
+        canvas.text(status, stateX + 1, BASELINE + 2, fontSize, shadow, style);
+        canvas.text(prefix, x, BASELINE, fontSize, '#ffffff', style);
+        canvas.text(status, stateX, BASELINE, fontSize, message.colour, style);
     }
     const body = Buffer.alloc(14 + canvas.d.length);
     body.writeUInt32LE(1, 0);
@@ -71,7 +74,7 @@ function draw(socket, message, frame) {
 
 function start(log, getMessage) {
     cluster.start(log, getMessage, { app: 'dpf', x: 745, y: 539, width: WIDTH, height: HEIGHT,
-        key: message => message.text, draw });
+        key: message => t(PREFIX) + t(message.text), draw });
 }
 
 module.exports = { start, createIndicator, testMessage };

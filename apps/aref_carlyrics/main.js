@@ -35,7 +35,7 @@ const ART = require('./artwork');
 const http = require('./http');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.3.6';
+const VERSION = '0.3.7';
 const HOMEPAGE = 'https://github.com/arefahmad/idrive7-apps';
 const W = 1600, H = 520;
 const IFACES = [
@@ -108,7 +108,7 @@ mgu.run({
             const net = http.client(ctx.dataDir);
             const request = (m, h, p, hd) => net.request(m, h, p, hd);
             const lyrics = new LyricsLib.Lyrics(request, log, 'CarLyrics/' + VERSION + ' (iDrive 7 head-unit app; ' + HOMEPAGE + ')');
-            const artwork = new ART.Artwork(request, log);
+            const artwork = new ART.Artwork(request, log, undefined, { dir: path.join(ctx.dataDir, 'covers') });   // covers kept on disk: replays show at once
             const np = new NP.NowPlaying(ctx.signals, log, IFACES);
             // Inter (OFL), the open look-alike of Apple's SF Pro: data/fonts/, baked by tools/bake_fonts.py
             let F_BOLD = 'bold', F_MED = 'label';

@@ -29,6 +29,9 @@ const DIM = 0.55;             // the backdrop's brightness (Apple Music: the blu
 const SATURATE = 1.5;         // ... and its colour (Apple Music: saturate(1.5))
 const RETRY_MS = 60000;       // a failed lookup is tried again after this long
 const CACHE = 4;              // covers kept (a song played again, skipping back)
+const SETTLE_MS = 700;        // skipping fast: a song is looked up once it has been current this long
+const MISSING_MS = 600000;    // no match found: asked again after 10 min (a skip can send a half-changed title)
+const DISK_MAX = 300;         // covers kept on disk (opts.dir): a song played again shows at once, even offline
 
 /** Lower-case words only, for comparing names ("Lil' Uzi Vert" ~ "lil uzi vert"). */
 function norm(s) { return LyricsLib.fold(String(s || '')).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -139,13 +142,20 @@ function backdrop(px, n, w, h, turned) {
 }
 
 class Artwork {
-    constructor(request, log, decode) {
+    /**
+     * opts: { px: the cover's side (default ART_PX), blur: false to skip the page backdrops (ETA Bar draws its own),
+     * dir: a folder for a disk cache of the downloaded JPEGs }.
+     */
+    constructor(request, log, decode, opts) {
         this.request = request;
         this.log = log;
         this.decode = decode || require('./jpeg_decoder');
+        this.opts = Object.assign({ px: ART_PX, blur: true, dir: null }, opts);
         this.cache = new Map();      // key -> entry
         this.busy = new Set();
+        this.want = { k: null, since: 0 };
         this.ver = 0;                // bumped whenever a cover becomes ready (the screen uploads it once)
+        if (this.opts.dir) { try { require('fs').mkdirSync(this.opts.dir); } catch (e) { /* there */ } }
     }
 
     static key(track) { return norm(track.title) + '|' + norm(track.artist); }
@@ -153,9 +163,12 @@ class Artwork {
     /** The entry for track; starts a lookup when there is none (or a failed one is old). */
     get(track) {
         if (!track || !track.title) return { state: 'none' };
-        const k = Artwork.key(track), e = this.cache.get(k);
-        if (e && !(e.state === 'error' && Date.now() - e.at > RETRY_MS)) return e;
-        if (!this.busy.has(k)) {
+        const k = Artwork.key(track), e = this.cache.get(k), now = Date.now();
+        if (e && !(e.state === 'error' && now - e.at > RETRY_MS) && !(e.state === 'missing' && now - e.at > MISSING_MS)) return e;
+        if (this.want.k !== k) this.want = { k: k, since: now };
+        // one lookup at a time, for the song that has stayed current: fast skips start nothing
+        const settled = now - this.want.since >= SETTLE_MS || (this.opts.dir && this._file(k) && require('fs').existsSync(this._file(k)));
+        if (!this.busy.has(k) && !this.busy.size && settled) {
             this.busy.add(k);
             this._load(track).then((v) => this._put(k, v), (err) => {
                 this.log.warn('artwork: ' + (err && err.message));
@@ -172,24 +185,44 @@ class Artwork {
         while (this.cache.size > CACHE) this.cache.delete(this.cache.keys().next().value);
     }
 
+    _file(k) { return this.opts.dir ? require('path').join(this.opts.dir, require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 16) + '.jpg') : null; }
+
     async _load(track) {
+        const fs = require('fs'), f = this._file(Artwork.key(track));
+        if (f) { try { const buf = fs.readFileSync(f); return this.fromJpeg(buf); } catch (e) { /* not cached */ } }
         const term = [LyricsLib.baseTitle(track.title), String(track.artist || '').split(/,|&/)[0]].join(' ');
         const q = querystring.stringify({ term: term, media: 'music', entity: 'song', limit: 10 });
         const r = await this.request('GET', 'itunes.apple.com', '/search?' + q, { Accept: 'application/json' });
         if (r.status !== 200) throw new Error('iTunes search HTTP ' + r.status);
         const best = pick((JSON.parse(r.body.toString('utf8')) || {}).results, track);
         if (!best) { this.log.info('artwork: none found for "' + track.title + '"'); return { state: 'missing', at: Date.now() }; }
-        const u = url.parse(sized(best.artworkUrl100, ART_PX));
+        const u = url.parse(sized(best.artworkUrl100, this.opts.px));
         const img = await this.request('GET', u.hostname, u.path, {});
         if (img.status !== 200) throw new Error('artwork HTTP ' + img.status);
-        return this.fromJpeg(img.body);
+        const v = this.fromJpeg(img.body);
+        if (f) this._save(f, img.body);
+        return v;
+    }
+
+    _save(f, buf) {
+        const fs = require('fs'), path = require('path');
+        try {
+            fs.writeFileSync(f, buf);
+            const all = fs.readdirSync(this.opts.dir).filter((n) => /\.jpg$/.test(n));
+            if (all.length > DISK_MAX) {
+                all.map((n) => ({ n: n, t: fs.statSync(path.join(this.opts.dir, n)).mtimeMs })).sort((a, b) => a.t - b.t)
+                    .slice(0, all.length - DISK_MAX).forEach((x) => fs.unlinkSync(path.join(this.opts.dir, x.n)));
+            }
+        } catch (e) { /* full disk: no cache */ }
     }
 
     /** The entry made from JPEG bytes (also for tests). */
     fromJpeg(buf) {
         const im = this.decode(buf, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 4, maxMemoryUsageInMB: 48 });
-        const sq = squareResample(im.data, im.width, im.height, ART_PX, Math.round(ART_PX * ART_R));
-        return { state: 'ready', at: Date.now(), cover: sq.px, blur: backdrop(sq.px, ART_PX, BG_W, BG_H), blur2: backdrop(sq.px, ART_PX, BG_W, BG_H, true), tint: sq.avg };
+        const n = this.opts.px, sq = squareResample(im.data, im.width, im.height, n, Math.round(n * ART_R));
+        const e = { state: 'ready', at: Date.now(), cover: sq.px, n: n, tint: sq.avg };
+        if (this.opts.blur) { e.blur = backdrop(sq.px, n, BG_W, BG_H); e.blur2 = backdrop(sq.px, n, BG_W, BG_H, true); }
+        return e;;
     }
 }
 

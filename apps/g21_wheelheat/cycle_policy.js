@@ -81,10 +81,14 @@ class VehicleCycle {
         if (freshOn) {
             const parkedMs = this.offAt > 0 && t >= this.offAt ? t - this.offAt : -1;
             this.onAt = t;
-            this.eligible = (parkedMs >= this.offMinutes * 60000 || this.testBypass) &&
+            // The test bypass is one-shot: it applies to exactly this fresh
+            // ignition and is cleared even if the process keeps running.
+            const bypass = this.testBypass;
+            this.testBypass = false;
+            this.eligible = (parkedMs >= this.offMinutes * 60000 || bypass) &&
                 this.usedOnAt !== this.onAt && this.cancelledOnAt !== this.onAt;
             this.reason = this.eligible ?
-                (this.testBypass ? 'ONE-SHOT TEST: IGNITION ON (parking time bypassed)' :
+                (bypass ? 'ONE-SHOT TEST: IGNITION ON (parking time bypassed)' :
                     'NEW IGNITION: parked ' + Math.floor(parkedMs / 60000) + 'm, eligible') :
                 'NEW IGNITION: parked ' + (parkedMs < 0 ? 'unknown' : Math.floor(parkedMs / 60000) + 'm') +
                 ', requires ' + this.offMinutes + 'm; BLOCKED THIS DRIVE';
@@ -93,6 +97,13 @@ class VehicleCycle {
             this.reason = 'IGNITION ON without a new verified OFF -> ON cycle; BLOCKED';
         }
         return { changed: true, transition: 'on', reason: this.reason };
+    }
+
+    /** Arm the one-shot test while the app is already running. It applies
+     * to the next fresh OFF -> ON edge only. */
+    armTest() {
+        this.testBypass = true;
+        return true;
     }
 
     canStart() {

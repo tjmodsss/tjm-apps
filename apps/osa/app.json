@@ -2,8 +2,9 @@
   "id": "osa",
   "title": "TJM Oil Service",
   "description": "Engine, coolant and transmission oil temperature monitoring with live warm-up estimates and locally stored service history",
-  "version": "0.2.45",
+  "version": "0.2.50",
   "settingsBeforeLast": true,
+  "settingsTabInStandard": true,
   "vendor": "TJM",
   "loggingId": "OB04",
   "iconGlyph": "temp",
@@ -14,21 +15,121 @@
       "title": "TJM Oil Service",
       "buttons": [
         [
+          "BTN_SETTINGS",
+          "Settings"
+        ],
+        [
           "BTN_PAGE",
           "Next page"
         ],
         [
           "BTN_PREV",
           "Previous page"
-        ],
-        [
-          "BTN_SETTINGS",
-          "Settings"
         ]
       ]
     }
   ],
   "settings": [
+    {
+      "key": "language",
+      "label": "Language",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Use iDrive language"
+        ],
+        [
+          "en",
+          "English"
+        ],
+        [
+          "de",
+          "Deutsch"
+        ],
+        [
+          "es",
+          "Español"
+        ],
+        [
+          "fr",
+          "Français"
+        ],
+        [
+          "hu",
+          "Magyar"
+        ],
+        [
+          "pl",
+          "Polski"
+        ],
+        [
+          "sk",
+          "Slovenčina"
+        ],
+        [
+          "cs",
+          "Čeština"
+        ],
+        [
+          "it",
+          "Italiano"
+        ],
+        [
+          "ru",
+          "Русский"
+        ],
+        [
+          "da",
+          "Dansk"
+        ],
+        [
+          "el",
+          "Ελληνικά"
+        ],
+        [
+          "zh-CN",
+          "简体中文"
+        ],
+        [
+          "nl",
+          "Nederlands"
+        ],
+        [
+          "nb",
+          "Norsk"
+        ],
+        [
+          "pt",
+          "Português"
+        ],
+        [
+          "ro",
+          "Română"
+        ],
+        [
+          "sl",
+          "Slovenščina"
+        ],
+        [
+          "fi",
+          "Suomi"
+        ],
+        [
+          "sv",
+          "Svenska"
+        ],
+        [
+          "tr",
+          "Türkçe"
+        ],
+        [
+          "uk",
+          "Українська"
+        ]
+      ]
+    },
     {
       "key": "theme",
       "label": "Colour theme",
@@ -122,7 +223,7 @@
       "key": "warmOil",
       "label": "Oil is warm at",
       "type": "number",
-      "unit": "\u00b0C",
+      "unit": "°C",
       "default": 80,
       "steps": [
         60,
@@ -138,7 +239,7 @@
       "key": "warmCoolant",
       "label": "Coolant is warm at",
       "type": "number",
-      "unit": "\u00b0C",
+      "unit": "°C",
       "default": 80,
       "steps": [
         60,
@@ -151,6 +252,11 @@
     }
   ],
   "signals": {
+    "de.bmw.infotainment.hmi.hmicontext.HMIContext": {
+      "_optional": "Automatic iDrive language",
+      "_instances": "HMI_CID",
+      "currentDisplayLanguage": "rs"
+    },
     "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
       "_instances": "SystemFunctionsInternalTasuInst1",
       "_methods": [

@@ -62,7 +62,7 @@ class TransmissionReader {
         this.sgbd = hex(uds.slice(3, 6));
         if (this.sgbd !== '0F25D0') {
             this.statusText = 'UNSUPPORTED EGS';
-            this.error = 'EGS ' + this.sgbd + ' is not verified';
+            this.error = 'Unverified EGS variant';
             return false;
         }
         this.statusText = 'IDENTIFIED · 0F25D0';
@@ -77,7 +77,7 @@ class TransmissionReader {
             { maxRetries: 2, retryBaseMs: 500, callTimeoutMs: 2500, hardTimeoutMs: 6500, pendingTimeoutMs: 2500 });
         if (!uds || uds[0] !== 0x62 || uds[1] !== 0x60 || uds[2] !== 0x00 || uds.length !== 4) {
             this.statusText = 'WAITING FOR DATA';
-            this.error = !uds ? 'No response from EGS' : 'Unexpected DID 6000 response';
+            this.error = !uds ? 'NO EGS RESPONSE' : 'Unexpected DID 6000 response';
             return;
         }
         const value = Number(uds[3]) - 40;
@@ -113,9 +113,9 @@ class TransmissionReader {
                     await this.readTemperature();
                 }
             } catch (e) {
-                this.error = String(e.message || e);
+                this.error = 'Diagnostic read failed';
+                this.ctx.log.warn('OSA transmission: ' + (e.message || e));
                 this.statusText = 'READ ERROR';
-                this.ctx.log.warn('OSA EGS read: ' + this.error);
             } finally {
                 this.busy = false;
             }

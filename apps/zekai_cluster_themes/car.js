@@ -71,13 +71,14 @@ class Car {
     }
 
     watch(ctx) {
-        const add = (name, fields, pollMs, readTimeoutMs = 1000, pollByField) => ctx.signals.watch(name, '1', fields, ctx.log, {
-            pollMs, readTimeoutMs, pollByField, shouldPoll: () => !ctx.ui || ctx.ui.isVisible('MAIN'),
-        }).catch((error) => ctx.log.warn('Signal unavailable: ' + name + ' ' + error.message));
+        const add = (name, fields, pollMs, { instance = '1', readTimeoutMs = 1000, pollByField } = {}) =>
+            ctx.signals.watch(name, instance, fields, ctx.log, {
+                pollMs, readTimeoutMs, pollByField, shouldPoll: () => !ctx.ui || ctx.ui.isVisible('MAIN'),
+            }).catch((error) => ctx.log.warn('Signal unavailable: ' + name + ' ' + error.message));
 
         add('de.bmw.infotainment.vehicle.Vehicle2', {
             statusCarSpeed2: (v) => this.put('speed', scaled(v && v.speedVehicleCentreOfGravity, 65535, 1 / 64, 0)),
-        }, 150, 350);
+        }, 150, { readTimeoutMs: 350 });
         add('de.bmw.infrastructure.VehicleInformation', {
             statusGearboxDrive: (v) => {
                 const x = v && v.statusActualStageDrive;
@@ -94,7 +95,7 @@ class Car {
                 this.put('coolant', scaled(v && v.temperatureEngineDrive, 255, 1, -48));
                 this.put('oil', scaled(v && v.temperatureEngineOilDrive, 255, 1, -48));
             },
-        }, 200, 450, { statusEngineTemperature: 2500 });
+        }, 200, { readTimeoutMs: 450, pollByField: { statusEngineTemperature: 2500 } });
         add('de.bmw.infotainment.KombiIF', {
             statusRangeTankStatus: (v) => {
                 this.put('range', scaled(v && v.range, 4095, 1, 0));
@@ -122,7 +123,7 @@ class Car {
                     this.put('media', nowPlaying(value));
                 }
             },
-        }, 3000);
+        }, 3000, { instance: 'HMI_CID' });
     }
 }
 

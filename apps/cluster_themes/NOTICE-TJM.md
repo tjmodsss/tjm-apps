@@ -6,3 +6,8 @@ Imported into the TJM apps from https://github.com/bimmer-lab/apps.git (commit b
 
 Needs on the head unit: cluster-render.
 Updated to the source's commit b4ee03a435f3 on 2026-11-21 (was ab81cee4d778); the TJM changes kept.
+
+TJM change (2026-11-21): `kit/` holds the source's own kit modules (from its `kit/runtime`, the ones that differ
+from the TJM kit), laid over the TJM kit by build.py. The TJM kit draws no pixel image on the Store's renderer
+(mgu-render/1), so the theme previews on the app's page were black; the source's kit sends them as pixmaps.
+Refresh it after each update: `python auto-update\kit_overlay_ct.py "<TJM Apps>"` (master copy).

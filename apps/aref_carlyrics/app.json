@@ -2,7 +2,7 @@
   "id": "aref_carlyrics",
   "title": "TJM Car Lyrics",
   "description": "Synced lyrics for whatever the car plays: Apple Music over CarPlay, Bluetooth or USB, no Spotify needed. A full-screen page drawn like Apple Music's: the album art blurred behind, the cover and a progress line on the left, and the lyrics gliding line by line on the right, timed to the song from the car's own clock. Lyrics from LRCLIB, artwork from Apple's iTunes search. A Probe tab shows what the car reports. Read-only toward the car. Needs internet through the Store's uplink.",
-  "version": "0.3.7",
+  "version": "0.6.6",
   "vendor": "TJM",
   "loggingId": "OB09",
   "internet": true,
@@ -95,10 +95,103 @@
           "BTN_SETTINGS",
           "Settings"
         ]
-      ]
+      ],
+      "settingsTab": false
     }
   ],
   "settings": [
+    {
+      "key": "arrangement",
+      "label": "Layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Lyrics full width, small cover on top"
+        ],
+        [
+          "side",
+          "Big cover, lyrics beside it"
+        ]
+      ]
+    },
+    {
+      "key": "style",
+      "label": "Look",
+      "type": "choice",
+      "default": "glass",
+      "options": [
+        [
+          "glass",
+          "Glass (Apple Music, iOS 26)"
+        ],
+        [
+          "classic",
+          "Classic"
+        ]
+      ]
+    },
+    {
+      "key": "bg_motion",
+      "label": "Background motion",
+      "type": "choice",
+      "default": "still",
+      "options": [
+        [
+          "still",
+          "Still"
+        ],
+        [
+          "drift",
+          "Slow drift (like Apple Music)"
+        ]
+      ]
+    },
+    {
+      "key": "cover_size",
+      "label": "Cover size (big-cover layout)",
+      "type": "choice",
+      "default": "medium",
+      "options": [
+        [
+          "small",
+          "Small"
+        ],
+        [
+          "medium",
+          "Medium"
+        ],
+        [
+          "large",
+          "Large"
+        ]
+      ]
+    },
+    {
+      "key": "lyrics_size",
+      "label": "Lyrics size",
+      "type": "choice",
+      "default": "medium",
+      "options": [
+        [
+          "small",
+          "Small"
+        ],
+        [
+          "medium",
+          "Medium"
+        ],
+        [
+          "large",
+          "Large"
+        ],
+        [
+          "huge",
+          "Huge"
+        ]
+      ]
+    },
     {
       "key": "theme",
       "label": "Colours",
@@ -146,6 +239,24 @@
         2000,
         3000
       ]
+    },
+    {
+      "key": "probe_tab",
+      "label": "Show the Probe tab (what the car reports)",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "hide_back_arrow",
+      "label": "Hide BMW's < tab on the left (the backdrop reaches the edge)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "hide_status_bar",
+      "label": "Full screen: hide BMW's top bar (clock, signal, profile)",
+      "type": "bool",
+      "default": true
     }
   ]
 }

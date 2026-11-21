@@ -2,8 +2,10 @@
 /**
  * artwork.js - the album art for a song, and the blurred backdrop made from it.
  *
- * The car doesn't pass CarPlay's artwork on to apps, so the cover comes from Apple's own iTunes Search
- * API (free, no key): the same artwork Apple Music shows. It is decoded on the car (vendor/jpeg_decoder.js)
+ * The cover comes first from the car itself: BMW's media service saves the phone's artwork for the song playing
+ * (CarPlay sends it) as a JPEG on a RAM disk, and names it in the song's metadata (COVER_FILE, e.g.
+ * /tmp/mediaramdisk_hu/covers/cover_MGU_MediaEngineWifi_7.jpg, readable by apps): no internet needed, and
+ * exactly what Apple Music shows. Without it (no file, not readable), Apple's iTunes Search API (free, no key). It is decoded on the car (vendor/jpeg_decoder.js)
  * into two pixel pictures:
  *
  *   cover: ART_PX x ART_PX, centre-cropped, corners rounded in its alpha
@@ -28,15 +30,20 @@ const BLUR = 18;              // the backdrop's box-blur radius (px of BG_W), th
 const DIM = 0.55;             // the backdrop's brightness (Apple Music: the blur under a 50 % black layer)
 const SATURATE = 1.5;         // ... and its colour (Apple Music: saturate(1.5))
 const RETRY_MS = 60000;       // a failed lookup is tried again after this long
-const CACHE = 4;              // covers kept (a song played again, skipping back)
-const SETTLE_MS = 700;        // skipping fast: a song is looked up once it has been current this long
+const CACHE = 6;              // covers kept decoded by default (a song played again, skipping back: at once); opts.cache
+const SETTLE_MS = 300;        // skipping fast: a song is looked up once it has been current this long ...
+const SKIP_MS = 4000;
+const CAR_WAIT_MS = 1200;      // a new song: give the car this long to name its own cover before asking iTunes         // ... unless the song before it played this long (not skipping): then at once
 const MISSING_MS = 600000;    // no match found: asked again after 10 min (a skip can send a half-changed title)
 const DISK_MAX = 300;         // covers kept on disk (opts.dir): a song played again shows at once, even offline
 
 /** Lower-case words only, for comparing names ("Lil' Uzi Vert" ~ "lil uzi vert"). */
 function norm(s) { return LyricsLib.fold(String(s || '')).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
 
-/** The best iTunes result for the song: same title and artist first, else same artist, else the first. */
+/**
+ * The best iTunes result for the song: the same album counts most (a song is on its single, its album and
+ * compilations, each with its own cover; the one playing is the one Apple Music shows), then title and artist.
+ */
 function pick(results, track) {
     const list = (results || []).filter((r) => r && r.artworkUrl100);
     if (!list.length) return null;
@@ -46,7 +53,11 @@ function pick(results, track) {
         let s = 0;
         if (rt === t) s += 4; else if (rt.indexOf(t) >= 0 || t.indexOf(rt) >= 0) s += 2;
         if (a && (ra.indexOf(a) >= 0 || a.indexOf(ra) >= 0)) s += 3;
-        if (track.album && norm(r.collectionName) === norm(track.album)) s += 1;
+        if (track.album) {
+            const ca = norm(r.collectionName), ta = norm(track.album);
+            if (ca === ta) s += 6; else if (ca && ta && (ca.indexOf(ta) >= 0 || ta.indexOf(ca) >= 0)) s += 3;
+        }
+        if (/various artists/i.test(r.collectionArtistName || '')) s -= 2;          // compilations last
         return s;
     };
     const best = list.map((r) => [score(r), r]).sort((x, y) => y[0] - x[0])[0];
@@ -150,7 +161,7 @@ class Artwork {
         this.request = request;
         this.log = log;
         this.decode = decode || require('./jpeg_decoder');
-        this.opts = Object.assign({ px: ART_PX, blur: true, dir: null }, opts);
+        this.opts = Object.assign({ px: ART_PX, blur: true, dir: null, cache: CACHE }, opts);
         this.cache = new Map();      // key -> entry
         this.busy = new Set();
         this.want = { k: null, since: 0 };
@@ -158,21 +169,42 @@ class Artwork {
         if (this.opts.dir) { try { require('fs').mkdirSync(this.opts.dir); } catch (e) { /* there */ } }
     }
 
-    static key(track) { return norm(track.title) + '|' + norm(track.artist); }
+    static key(track) { return norm(track.title) + '|' + norm(track.artist) + '|' + norm(track.album); }
 
     /** The entry for track; starts a lookup when there is none (or a failed one is old). */
     get(track) {
         if (!track || !track.title) return { state: 'none' };
         const k = Artwork.key(track), e = this.cache.get(k), now = Date.now();
-        if (e && !(e.state === 'error' && now - e.at > RETRY_MS) && !(e.state === 'missing' && now - e.at > MISSING_MS)) return e;
-        if (this.want.k !== k) this.want = { k: k, since: now };
+        // offline, iTunes failed: once the car names its own cover file, try again at once
+        const again = e && (e.state === 'error' || e.state === 'missing') && track.cover && e.cover0 !== track.cover;
+        if (track.cover) this.sawCover = true;
+        // the car rewrote its file after we read it (we caught the last song's picture): read it again
+        if (e && e.state === 'ready' && e.src === 'car' && track.cover === e.carPath && now - (e.checkedAt || 0) > 1000 && !this.busy.has(k + '#car')) {
+            e.checkedAt = now;
+            try {
+                if (require('fs').statSync(track.cover).mtime.getTime() > e.carMtime + 200) {
+                    this.busy.add(k + '#car');
+                    this._fromCar(track, this._file(k)).then((v) => { if (v) this._put(k, v); }, () => {}).then(() => this.busy.delete(k + '#car'));
+                }
+            } catch (x) { /* gone */ }
+        }
+        // a cover from iTunes or the disk while the car has its own file: the car's wins (it's what Apple Music shows)
+        if (e && e.state === 'ready' && e.src !== 'car' && track.cover && e.carTried !== track.cover && !this.busy.has(k + '#car')) {
+            e.carTried = track.cover;
+            this.busy.add(k + '#car');
+            this._fromCar(track, this._file(k)).then((v) => { if (v) this._put(k, v); }, () => {}).then(() => this.busy.delete(k + '#car'));
+        }
+        if (e && !again && !(e.state === 'error' && now - e.at > RETRY_MS) && !(e.state === 'missing' && now - e.at > MISSING_MS)) return e;
+        if (this.want.k !== k) this.want = { k: k, since: now - (now - this.want.since >= SKIP_MS ? SETTLE_MS : 0) };
         // one lookup at a time, for the song that has stayed current: fast skips start nothing
-        const settled = now - this.want.since >= SETTLE_MS || (this.opts.dir && this._file(k) && require('fs').existsSync(this._file(k)));
-        if (!this.busy.has(k) && !this.busy.size && settled) {
+        const settled = now - this.want.since >= SETTLE_MS || !!track.cover || (this.opts.dir && this._file(k) && require('fs').existsSync(this._file(k)));
+        // the song that stays current may start beside one older lookup still on its way (at most two)
+        const waitCar = this.sawCover && !track.cover && now - this.want.since < CAR_WAIT_MS;
+        if (!this.busy.has(k) && this.busy.size < 2 && settled && !waitCar) {
             this.busy.add(k);
             this._load(track).then((v) => this._put(k, v), (err) => {
                 this.log.warn('artwork: ' + (err && err.message));
-                this._put(k, { state: 'error', at: Date.now() });
+                this._put(k, { state: 'error', at: Date.now(), cover0: track.cover });
             }).then(() => this.busy.delete(k));
         }
         return e || { state: 'loading' };
@@ -182,26 +214,80 @@ class Artwork {
         if (v.state === 'ready') v.ver = ++this.ver;
         this.cache.delete(k);
         this.cache.set(k, v);
-        while (this.cache.size > CACHE) this.cache.delete(this.cache.keys().next().value);
+        while (this.cache.size > this.opts.cache) this.cache.delete(this.cache.keys().next().value);
     }
 
-    _file(k) { return this.opts.dir ? require('path').join(this.opts.dir, require('crypto').createHash('sha1').update(k).digest('hex').slice(0, 16) + '.jpg') : null; }
+    _file(k) { return this.opts.dir ? require('path').join(this.opts.dir, require('crypto').createHash('sha1').update('v2|' + k).digest('hex').slice(0, 16) + '.jpg') : null; }
 
     async _load(track) {
-        const fs = require('fs'), f = this._file(Artwork.key(track));
-        if (f) { try { const buf = fs.readFileSync(f); return this.fromJpeg(buf); } catch (e) { /* not cached */ } }
+        const fs = require('fs'), f = this._file(Artwork.key(track)), t0 = Date.now();
+        // the car's own copy of the phone's artwork (offline; the file can come a moment after the metadata)
+        const car = await this._fromCar(track, f);
+        if (car) return car;
+        // the homelab's pack keeps covers by title and artist only (no album): that file too
+        const fAlt = this._file(norm(track.title) + '|' + norm(track.artist) + '|');
+        if (f && !fs.existsSync(f) && fAlt && fs.existsSync(fAlt)) { try { const v = this.fromJpeg(fs.readFileSync(fAlt)); v.src = 'disk'; this.log.info('artwork: from the pack in ' + (Date.now() - t0) + ' ms'); return v; } catch (e) { /* unreadable */ } }
+        if (f) { try { const buf = fs.readFileSync(f); const v = this.fromJpeg(buf); v.src = 'disk'; this.log.info('artwork: from disk in ' + (Date.now() - t0) + ' ms'); return v; } catch (e) { /* not cached */ } }
         const term = [LyricsLib.baseTitle(track.title), String(track.artist || '').split(/,|&/)[0]].join(' ');
         const q = querystring.stringify({ term: term, media: 'music', entity: 'song', limit: 10 });
         const r = await this.request('GET', 'itunes.apple.com', '/search?' + q, { Accept: 'application/json' });
         if (r.status !== 200) throw new Error('iTunes search HTTP ' + r.status);
-        const best = pick((JSON.parse(r.body.toString('utf8')) || {}).results, track);
-        if (!best) { this.log.info('artwork: none found for "' + track.title + '"'); return { state: 'missing', at: Date.now() }; }
-        const u = url.parse(sized(best.artworkUrl100, this.opts.px));
+        let best = pick((JSON.parse(r.body.toString('utf8')) || {}).results, track);
+        // the album known but no song on it found: look the album up itself, its cover is the one Apple Music shows
+        if (track.album && !(best && norm(best.collectionName) === norm(track.album))) {
+            const qa = querystring.stringify({ term: track.album + ' ' + String(track.artist || '').split(/,|&/)[0], media: 'music', entity: 'album', limit: 10 });
+            try {
+                const ra = await this.request('GET', 'itunes.apple.com', '/search?' + qa, { Accept: 'application/json' });
+                const albums = ra.status === 200 ? ((JSON.parse(ra.body.toString('utf8')) || {}).results || []) : [];
+                const a0 = norm(String(track.artist || '').split(/,|&| feat\.? | x /i)[0]);
+                const hit = albums.find((x) => x && x.artworkUrl100 && norm(x.collectionName) === norm(track.album) &&
+                    (!a0 || norm(x.artistName).indexOf(a0) >= 0 || a0.indexOf(norm(x.artistName)) >= 0));
+                if (hit) best = hit;
+            } catch (e) { /* the song's result stands */ }
+        }
+        if (!best) { this.log.info('artwork: none found for "' + track.title + '"'); return { state: 'missing', at: Date.now(), cover0: track.cover }; }
+        const t1 = Date.now(), u = url.parse(sized(best.artworkUrl100, this.opts.px));
         const img = await this.request('GET', u.hostname, u.path, {});
         if (img.status !== 200) throw new Error('artwork HTTP ' + img.status);
-        const v = this.fromJpeg(img.body);
+        const t2 = Date.now(), v = this.fromJpeg(img.body);
+        v.src = 'itunes';
         if (f) this._save(f, img.body);
+        this.log.info('artwork: ready in ' + (Date.now() - t0) + ' ms (search ' + (t1 - t0) + ', image ' + (t2 - t1) + ', decode ' + (Date.now() - t2) + ')');
         return v;
+    }
+
+    /** The car's own cover file for track (track.cover), or null: tried for up to ~2.4 s while the car writes it. */
+    async _fromCar(track, f) {
+        const fs = require('fs'), t0 = Date.now();
+        if (!(track.cover && /^\/tmp\/mediaramdisk/.test(track.cover) && /\.(jpe?g)$/i.test(track.cover))) return null;
+        // the car reuses a few file names (cover_..._3.jpg): right after a skip the name can still hold the last song's
+        // picture. A file older than this song (its first request, less 1.5 s) isn't this song's: wait for the new one.
+        const since = (this.want && this.want.k === Artwork.key(track) ? this.want.since : Date.now()) - 1500;
+        for (let i = 0; i < 8; i++) {
+            try {
+                let file = track.cover, st = null;
+                try { st = fs.statSync(file); } catch (e) {
+                    // the name in the metadata doesn't exist (often: the car writes the picture under another number):
+                    // the newest picture in the same folder written since the song changed
+                    const dir = require('path').dirname(file);
+                    const pick = fs.readdirSync(dir).filter((n) => /\.jpe?g$/i.test(n)).map((n) => ({ f: require('path').join(dir, n), t: fs.statSync(require('path').join(dir, n)).mtime.getTime() }))
+                        .filter((x) => x.t >= since).sort((a, b) => b.t - a.t)[0];
+                    if (!pick) throw e;
+                    file = pick.f; st = fs.statSync(file);
+                }
+                if (st.mtime.getTime() < since) { if (i === 7) this.log.info('artwork: the car\'s file is still the last song\'s'); throw Object.assign(new Error('stale'), { code: 'STALE' }); }
+                const buf = await new Promise((ok, no) => fs.readFile(file, (e, b) => (e ? no(e) : ok(b))));
+                if (buf.length > 100) {
+                    const v = this.fromJpeg(buf);
+                    v.src = 'car'; v.carPath = track.cover; v.carMtime = st.mtime.getTime();
+                    if (f) this._save(f, buf);
+                    this.log.info('artwork: from the car in ' + (Date.now() - t0) + ' ms');
+                    return v;
+                }
+            } catch (e) { if (i === 7 && e.code !== 'STALE') this.log.info('artwork: the car\'s file ' + (e.code || e.message)); }
+            await new Promise((ok) => setTimeout(ok, 300));
+        }
+        return null;
     }
 
     _save(f, buf) {

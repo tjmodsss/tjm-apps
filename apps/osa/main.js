@@ -14,6 +14,7 @@ const Language = require('./language');
 const { t: translate } = require('./kit/i18n');
 const { withAlpha } = require('./kit/canvas');
 const TransmissionReader = require('./transmission');
+const CarEquipment = require('./kit/car-equipment');
 const turboIconPreview = require('./turbo-icon-preview');
 const fs = require('fs');
 const path = require('path');
@@ -27,6 +28,48 @@ mgu.run({
         const { ui, log } = ctx;
         const getLanguage = Language.start(ctx);
         let page = 0;
+        // 6WB-dependent cluster output is disabled until a validated VO confirms it.
+        // Never overwrite the user's notification preference when equipment is unresolved.
+        ctx.settings.values.cluster6wbAvailable = false;
+        let equipmentChecking = false;
+        let equipmentCheckedAt = 0;
+        let equipmentRetry = null;
+        function scheduleEquipmentCheck() {
+            if (equipmentRetry) return;
+            equipmentRetry = setTimeout(() => {
+                equipmentRetry = null;
+                refreshClusterEquipment().catch(error => log.warn('OSA Car Equipment retry: ' + error));
+            }, 10000);
+        }
+        async function refreshClusterEquipment(force = false) {
+            if (equipmentChecking || (!force && Date.now() - equipmentCheckedAt < 10000)) return;
+            equipmentChecking = true;
+            equipmentCheckedAt = Date.now();
+            try {
+                if (force) {
+                    const reloaded = await CarEquipment.request({ op: 'reload' }, { timeout: 15000 });
+                    if (!reloaded || reloaded.ok !== true || reloaded.available !== true)
+                        log.warn('OSA Car Equipment reload: ' + (reloaded && reloaded.error || 'VO not yet available'));
+                }
+                // Only a cache check. The shared tool owns all gateway reads and retries.
+                const result = await CarEquipment.has('6WB', { timeout: 12000 });
+                const supported = result === true;
+                if (ctx.settings.values.cluster6wbAvailable !== supported)
+                    ctx.settings.set('cluster6wbAvailable', supported);
+                log.info('OSA Car Equipment 6WB (VO) = ' + result);
+                if (result !== true && result !== false) scheduleEquipmentCheck();
+                else if (equipmentRetry) { clearTimeout(equipmentRetry); equipmentRetry = null; }
+            } catch (error) {
+                if (ctx.settings.values.cluster6wbAvailable !== false)
+                    ctx.settings.set('cluster6wbAvailable', false);
+                log.warn('OSA Car Equipment 6WB: ' + String(error && error.message || error));
+                scheduleEquipmentCheck();
+            } finally { equipmentChecking = false; }
+        }
+        ctx.settings.onAction('reloadEquipment', () => {
+            refreshClusterEquipment(true).catch(error => log.warn('OSA manual equipment reload: ' + error));
+        });
+        refreshClusterEquipment().catch(error => log.warn('OSA Car Equipment: ' + error));
         const rasterRuns = src => {
             const d = src.d, w = src.w, h = src.h;
             // Join matching runs across rows to avoid seams inside solid areas.
@@ -128,6 +171,8 @@ mgu.run({
 
             const newsX = 1120;
             const milestones = [
+                ['0.2.52', 'Show cluster notification setting only when VO contains 6WB'],
+                ['0.2.51', 'Each language appears once; iDrive language marked (auto)'],
                 ['0.2.50', 'Scrollable release history'],
                 ['0.2.49', 'Settings tab in Standard layout'],
                 ['0.2.46', 'App language in Settings'],
@@ -389,7 +434,7 @@ mgu.run({
             const { demo, oil } = car.data();
             if (demo || !G.isNum(oil)) return null;
             const message = warmupMessage(oil, oilWarmTarget(), mono());
-            return ctx.settings.get('oilCluster') ? message : null;
+            return ctx.settings.values.cluster6wbAvailable === true && ctx.settings.get('oilCluster') ? message : null;
         }, recordCluster, () => testPhase() >= 0, () => testMode === 'clusterLowerTest', getLanguage);
         const transmission = new TransmissionReader(ctx);
         let outsideTemp = null;
@@ -655,6 +700,7 @@ mgu.run({
 
         const switchPage = (next) => {
             page = (next + 4) % 4;
+
             return render();
         };
 
@@ -678,6 +724,7 @@ mgu.run({
         });
 
         ui.onVisible((name, on) => {
+            if (name === 'MAIN' && on) refreshClusterEquipment().catch(error => log.warn('OSA Car Equipment: ' + error));
             if (name === 'MAIN') transmission.setVisible(on);
         });
         transmission.setVisible(ui.isVisible('MAIN'));

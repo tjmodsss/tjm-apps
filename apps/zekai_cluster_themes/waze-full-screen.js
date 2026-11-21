@@ -108,9 +108,8 @@ function wazeFullPanel(canvas, data, opts = {}) {
         // Current position marker.
         canvas.circle(px(474), py(222), 14 * unit, '#ffffff');
         canvas.circle(px(474), py(222), 10 * unit, MAP.accent);
-        canvas.convex([
-            [px(474), py(204)], [px(463), py(230)], [px(474), py(225)], [px(485), py(230)],
-        ], MAP.ink);
+        line(463, 230, 474, 207, 3, MAP.ink);
+        line(474, 207, 485, 230, 3, MAP.ink);
     }
 }
 

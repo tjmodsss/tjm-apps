@@ -19,11 +19,14 @@ const TIMEOUT_MS = 10000;
 
 function client(dataDir) {
     const lookupFor = uplink.resolver();
+    // connections kept open and TLS sessions reused: the second request to a host skips the TCP and TLS
+    // handshakes (several round trips each over a phone's hotspot)
+    const agent = new https.Agent({ keepAlive: true, keepAliveMsecs: 15000, maxSockets: 4, maxFreeSockets: 4 });
     return {
         online() { return !!uplink.lease(dataDir); },
         request(method, host, pathname, headers, body) {
             return new Promise((resolve, reject) => {
-                const opts = { method: method, host: host, port: 443, path: pathname, headers: headers || {}, timeout: TIMEOUT_MS };
+                const opts = { method: method, host: host, port: 443, path: pathname, headers: headers || {}, timeout: TIMEOUT_MS, agent: agent };
                 const lookup = lookupFor(uplink.lease(dataDir));
                 if (lookup) opts.lookup = lookup;
                 const ca = uplink.trustedCa(dataDir);

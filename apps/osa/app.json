@@ -2,7 +2,7 @@
   "id": "osa",
   "title": "TJM Oil Service",
   "description": "Engine, coolant and transmission oil temperature monitoring with live warm-up estimates and locally stored service history",
-  "version": "0.2.50",
+  "version": "0.2.54",
   "settingsBeforeLast": true,
   "settingsTabInStandard": true,
   "vendor": "TJM",
@@ -36,10 +36,6 @@
       "type": "choice",
       "default": "auto",
       "options": [
-        [
-          "auto",
-          "Use iDrive language"
-        ],
         [
           "en",
           "English"
@@ -187,11 +183,21 @@
       ]
     },
     {
+      "key": "cluster6wbAvailable",
+      "label": "6WB cluster detected",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
       "key": "oilCluster",
       "label": "Notification on cluster",
       "type": "bool",
       "default": false,
-      "notification": true
+      "notification": true,
+      "when": {
+        "cluster6wbAvailable": true
+      }
     },
     {
       "key": "clusterBcTest",
@@ -249,6 +255,12 @@
         85,
         90
       ]
+    },
+    {
+      "key": "reloadEquipment",
+      "label": "Reload Equipment",
+      "type": "action",
+      "hint": "Read vehicle equipment again"
     }
   ],
   "signals": {
@@ -280,5 +292,10 @@
       "_optional": "Observation of BMW Check Control messages",
       "newCCMessage": "rs"
     }
+  },
+  "requires": {
+    "idrive7-renderd": "2.1.19",
+    "mgu-inputgate": "1.2.1",
+    "bmrmodz-car-equipment": "0.1.4"
   }
 }

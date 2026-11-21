@@ -35,7 +35,7 @@ const ART = require('./artwork');
 const http = require('./http');
 const HW = require('./kit/homewidget');
 
-const VERSION = '0.3.7';
+const VERSION = '0.6.6';
 const HOMEPAGE = 'https://github.com/arefahmad/idrive7-apps';
 const W = 1600, H = 520;
 const IFACES = [
@@ -54,10 +54,13 @@ const FADE_MS = 320;              // a line brightens (and the last one fades) o
 const NUDGE = 0.3;                // share of the gap to a new time from the car that the clock takes at once
 const SNAP_MS = 1500;             // a gap bigger than this (a seek, a skip back) is jumped, not glided
 const HOLD_MS = 4000;             // the clock runs at most this far past the car's last time
+const IDLE_MS = 60000;            // off screen this long: the app goes idle (no subscriptions, no timers)
 const REPORT_MS = 60000;          // carlyrics-probe.txt is written again this often (when anything changed)
 // the lyrics as Apple Music on a Mac draws them: big bold text, wrapped; the line being sung full white,
 // the ones to come at 40 %, the ones sung at 25 %, both softly blurred, more the further they are
-const LYR = { size: 50, lh: 60, gap: 24, max: 4 };   // text size, line height, gap between lines, wrapped lines at most
+const LYR = { size: 50, lh: 60, gap: 24, max: 4 };   // text size, line height, gap between lines, wrapped lines at most (Settings > Lyrics size)
+const LYR_SIZES = { small: 42, medium: 50, large: 58, huge: 66 };
+const COVER_SIZES = { small: 0.8, medium: 1, large: 1.15 };
 const NEXT_A = 0.4, PAST_A = 0.25;                  // brightness of the lines to come and of the lines sung
 const BLUR_PX = 1.2, BLUR_MAX = 3.6;                // blur radius per line away from the one being sung, and at most
 
@@ -107,7 +110,7 @@ mgu.run({
         try {
             const net = http.client(ctx.dataDir);
             const request = (m, h, p, hd) => net.request(m, h, p, hd);
-            const lyrics = new LyricsLib.Lyrics(request, log, 'CarLyrics/' + VERSION + ' (iDrive 7 head-unit app; ' + HOMEPAGE + ')');
+            const lyrics = new LyricsLib.Lyrics(request, log, 'CarLyrics/' + VERSION + ' (iDrive 7 head-unit app; ' + HOMEPAGE + ')', path.join(ctx.dataDir, 'lyrics'));   // kept on disk: offline next time
             const artwork = new ART.Artwork(request, log, undefined, { dir: path.join(ctx.dataDir, 'covers') });   // covers kept on disk: replays show at once
             const np = new NP.NowPlaying(ctx.signals, log, IFACES);
             // Inter (OFL), the open look-alike of Apple's SF Pro: data/fonts/, baked by tools/bake_fonts.py
@@ -126,6 +129,7 @@ mgu.run({
             /* ---------- the track, and the clock that follows the car's time in it ---------- */
             let cur = null;           // { key, title, artist, album, duration, playing }
             let clk = null;           // { pos, at, playing, last }: the song's time pos (ms) at at (ms epoch)
+            let idle = false;         // off screen a minute: subscriptions closed (see "idle off screen" below)
             let startAt = Date.now(); // a source with no time of its own: when the song (probably) began
             const clockAt = (now) => clk.pos + (clk.playing ? Math.min(now - clk.at, HOLD_MS) : 0);
             const follow = () => {
@@ -135,10 +139,11 @@ mgu.run({
                 if (!cur || cur.key !== key) {
                     cur = { key: key, title: t.title, artist: t.artist, album: t.album, duration: t.duration || 0, playing: true };
                     clk = null; startAt = Date.now();
-                    log.info('track: "' + t.title + '" by "' + t.artist + '" (' + Math.round((t.duration || 0) / 1000) + ' s) from ' + t.from);
+                    log.info('track: "' + t.title + '" by "' + t.artist + '" on "' + (t.album || '') + '" (' + Math.round((t.duration || 0) / 1000) + ' s) from ' + t.from);
                 }
                 if (t.duration) cur.duration = t.duration;
                 if (t.album) cur.album = t.album;
+                if (t.cover) cur.cover = t.cover;
                 const playing = t.direct ? !!t.playing : true;
                 cur.playing = playing;
                 if (t.position === null || t.position === undefined) return;
@@ -159,10 +164,13 @@ mgu.run({
 
             /* ---------- artwork: uploaded to the renderer once per song ---------- */
             let artShown = 0;         // the artwork version uploaded
+            let lastArt = null;
             const artFor = () => {
                 if (!cur) return null;
-                const a = artwork.get({ title: cur.title, artist: cur.artist, album: cur.album });
-                if (a.state !== 'ready') return null;
+                const a = artwork.get({ title: cur.title, artist: cur.artist, album: cur.album, cover: cur.cover });   // cover: the car's own file
+                // not ready yet: the song's own colours (cover placeholder and background), never the last song's art
+                if (a.state !== 'ready') return (lastArt = null);
+                lastArt = a;
                 if (a.ver !== artShown) {
                     record.setImage(ART_ID, ART.ART_PX, ART.ART_PX, a.cover);
                     record.setImage(BG_ID, ART.BG_W, ART.BG_H, a.blur);
@@ -178,8 +186,60 @@ mgu.run({
             if (ctx.onTab) ctx.onTab(guard('tab', (i) => { probe = i === 1; page = 0; vpage = 0; showButtons(); }));
 
             /** The layout in the safe area A: the cover centred in the left half, the lyrics in the right half. */
+            // 0.5.1-0.5.3 kept the arrangement in 'layout', which is the kit's (full screen or BMW's frame): moved over
+            try { if (settings.get('layout') === 'side') { settings.set('arrangement', 'side'); settings.set('layout', 'full'); log.info('settings: arrangement moved out of layout'); } } catch (e) { /* */ }
+            const glassOn = () => settings.get('style') !== 'classic';
+            const sideOn = () => settings.get('arrangement') === 'side';   // ('layout' is the kit's own: full screen or not)      // a big cover, the lyrics beside it
+            /** iOS 26 Apple Music: a glass capsule with the cover and names top left, the lyrics full width under it,
+             * a slim glass progress pill at the bottom, a round ⋯ glass button top right (Settings). */
+            function geoGlass(A) {
+                const top = A.y + 120, bottom = A.bottom - 64;
+                return { A: A, glass: true, LX: A.x + 48, LW: A.w - 96, top: top, bottom: bottom };
+            }
+            function glassRect(cv, x, y, w, h, r) {
+                // Liquid Glass on a blurred backdrop: a light frosted fill, a brighter rim, a highlight along the top;
+                // Classic: a plain dark pill
+                if (!glassOn()) { cv.roundRect(x, y, w, h, r, G.withAlpha('#000000', 0.35)); return; }
+                cv.roundRect(x, y, w, h, r, G.withAlpha(WHITE, 0.12));
+                cv.strokeRoundRect(x, y, w, h, r, 1, G.withAlpha(WHITE, 0.3));
+                cv.roundRect(x + r * 0.6, y + 1.5, w - r * 1.2, 1.5, 1, G.withAlpha(WHITE, 0.35));
+            }
+            function openSettings() { try { const b = ui.rhmi && ui.rhmi.getByName('BTN_SETTINGS'); if (b && b.emit) b.emit('action', {}); } catch (e) { log.warn('settings: ' + e.message); } }
+            /** ⋯ (Settings), a round glass button top right: there's no Settings tab in the header. */
+            function moreButton(cv, A) {
+                const d = 64, mx = A.right - 24 - d, my = A.y + 24;
+                glassRect(cv, mx, my, d, d, d / 2);
+                for (let k = -1; k <= 1; k++) cv.circle(mx + d / 2 + k * 13, my + d / 2, 4, WHITE);
+                if (cv.own) FS.button(cv, 'more', mx, my, d, d, guard('more', openSettings), { r: d / 2, slop: 10 });
+            }
+            function glassChrome(cv, Q, a, P, now) {
+                const A = Q.A, B = { font: F_BOLD, literal: true }, M = { font: F_MED, literal: true };
+                // the capsule: cover, title, artist
+                const s = 76, cx = A.x + 24, cy = A.y + 18, tw = Math.min(620, Math.max(cv.textWidth(LyricsLib.fold(cur.title), 28, B), cv.textWidth(LyricsLib.fold(cur.artist || ''), 22, M)));
+                glassRect(cv, cx, cy, s + tw + 52, s + 16, (s + 16) / 2);
+                if (a) cv.image(ART_ID, cx + 8, cy + 8, s, s);
+                else cv.card(cx + 8, cy + 8, s, s, 12, [[0, P.art1], [1, P.art2]]);
+                cv.text(fit(cv, cur.title, 28, 620, B), cx + s + 26, cy + 44, 28, WHITE, B);
+                cv.text(fit(cv, cur.artist || '', 22, 620, M), cx + s + 26, cy + 74, 22, G.withAlpha(WHITE, 0.66), M);
+                moreButton(cv, A);
+                // progress: a slim glass pill with the times
+                const pos = Math.max(0, position(now) - offset()), dur = cur.duration || 0, pw = Math.min(760, A.w - 96), px = A.x + (A.w - pw) / 2, py = A.bottom - 50;
+                glassRect(cv, px, py, pw, 36, 18);
+                const bx = px + 76, bw = pw - 152;
+                cv.roundRect(bx, py + 16, bw, 4, 2, G.withAlpha(WHITE, 0.25));
+                if (dur) cv.roundRect(bx, py + 16, Math.max(4, Math.min(1, pos / dur) * bw), 4, 2, WHITE);
+                cv.text(mmss(pos), px + 22, py + 24, 16, G.withAlpha(WHITE, 0.75), M);
+                cv.text(dur ? '-' + mmss(dur - pos) : '', px + pw - 22, py + 24, 16, G.withAlpha(WHITE, 0.75), Object.assign({ align: 'right' }, M));
+                if (!clk && cv.own) {
+                    const bw2 = 220, bx2 = A.right - 24 - bw2, by2 = py - 4;
+                    glassRect(cv, bx2, by2, bw2, 44, 22);
+                    cv.text('Song just started', bx2 + bw2 / 2, by2 + 29, 18, WHITE, { align: 'center', font: F_BOLD, literal: true });
+                    FS.button(cv, 'sync', bx2, by2, bw2, 44, sync, { r: 22 });
+                }
+            }
+
             function geo(A) {
-                const S = Math.round(Math.max(240, Math.min(420, A.h - 150)));
+                const S = Math.round(Math.max(200, Math.min(480, (A.h - 150) * (COVER_SIZES[settings.get('cover_size')] || 1))));
                 const half = A.x + Math.round(A.w * 0.46);
                 const colH = S + 150, x0 = A.x + Math.round((half - A.x - S) / 2), y0 = A.y + Math.max(0, Math.round((A.h - colH) / 2));
                 const LX = half + 20;
@@ -187,25 +247,68 @@ mgu.run({
             }
 
             /** The blurred artwork behind everything (or the song's colours), drifting slowly while it plays. */
-            function backdrop(cv, a, now, P, fullH) {
+            /**
+             * Where the kit runs the screen, the HMI's own picture under it is one plain colour (the theme's bg); it
+             * shows where the surface is see-through (a few px along the bottom). The back column itself gets the
+             * backdrop drawn into it (bgEdge), so this is just the backdrop's darker lower tone, song by song.
+             */
+            const THEMES = require('./kit/themes');
+            let hmiBgShown = null;
+            function hmiBg(a, P) {
+                const c = edgeColour(a, P);
+                if (c === hmiBgShown) return;
+                hmiBgShown = c;
+                // what shows in the few px the page doesn't cover (along the bottom): the backdrop's darker lower tone
+                const n = (i) => parseInt(c.slice(1 + i * 2, 3 + i * 2), 16);
+                const bg = '#' + [0, 1, 2].map((i) => ('0' + Math.round(n(i) * 0.62).toString(16)).slice(-2)).join('');
+                if (ctx.setTheme) ctx.setTheme(() => Object.assign({}, THEMES.theme(settings.get('theme')), { bg: bg }));
+            }
+
+            /** The backdrop's colour at its left edge (the blurred cover's left 8 %, dimmed as the glass dims it), as #rrggbb. */
+            const edgeCache = { ver: -1, c: null };
+            function edgeColour(a, P) {
+                const hex = (r, g, b) => '#' + [r, g, b].map((v) => ('0' + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2)).join('');
+                if (!a || !a.blur) {
+                    const t = String(P.top || '#202020'), b = String(P.bottom || '#101010'), n = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16) || 0;
+                    return hex((n(t, 0) + n(b, 0)) / 2 * 0.85, (n(t, 1) + n(b, 1)) / 2 * 0.85, (n(t, 2) + n(b, 2)) / 2 * 0.85);
+                }
+                if (edgeCache.ver === a.ver && edgeCache.c) return edgeCache.c;
+                const bw = ART.BG_W, bh = ART.BG_H, cols = Math.max(2, Math.round(bw * 0.08));
+                let r = 0, g = 0, b = 0, k = 0;
+                for (let y = 0; y < bh; y++) for (let x = 0; x < cols; x++) { const i = (y * bw + x) * 4; r += a.blur[i]; g += a.blur[i + 1]; b += a.blur[i + 2]; k++; }
+                edgeCache.ver = a.ver; edgeCache.c = hex(r / k * 0.82, g / k * 0.82, b / k * 0.82);
+                return edgeCache.c;
+            }
+
+            const OVER = 160;          // logical px drawn past the page's top and bottom edges
+            function backdrop(cv, a, now, P, fullH, x0) {
+                x0 = x0 || 0;      // < 0: the copy for BMW's back column (bgEdge), so its plain fills start there too
                 if (a) {
                     // two blurred layers of the cover drifting past each other, slowly, as Apple Music's background flows
-                    const d = cur && cur.playing ? now / 1000 : 0;
+                    // Settings > Background motion: still (default) or a slow drift, as Apple Music's
+                    const d = settings.get('bg_motion') === 'drift' && cur && cur.playing ? now / 1000 : 0;
+                    // drift: each layer wanders ~14 % of the screen and breathes (zooms 6 % in and out) over 30-50 s, the
+                    // two at different speeds, so the colours visibly flow (Nov 21: 7 % over ~1 min read as still)
                     const layer = (id, sc, fx, fy, ph) => {
-                        const bw = W * sc, bh = fullH * sc;
-                        cv.image(id, (W - bw) / 2 + Math.sin(d / fx + ph) * 0.07 * W, (fullH - bh) / 2 + Math.cos(d / fy + ph) * 0.07 * fullH, bw, bh);
+                        const z = sc * (1 + 0.06 * Math.sin(d / (fx * 1.3) + ph));
+                        const bw = W * z, bh = (fullH + 2 * OVER) * z;   // tall enough to cover past the page (full screen)
+                        cv.image(id, (W - bw) / 2 + Math.sin(d / fx + ph) * 0.14 * W, (fullH - bh) / 2 + Math.cos(d / fy + ph) * 0.12 * fullH, bw, bh);
                     };
-                    layer(BG_ID, 1.25, 9, 11, 0);
-                    cv.alpha(0.5);
-                    layer(BG2_ID, 1.45, 13, 7, 2);
+                    layer(BG_ID, 1.4, 5, 6.5, 0);
+                    cv.alpha(0.55);
+                    layer(BG2_ID, 1.6, 7.5, 4.5, 2);
                     cv.alpha(1);
                 } else {
-                    cv.gradientRect(0, 0, W, fullH, [[0, P.top], [1, P.bottom]]);
+                    cv.gradientRect(x0, 0, W - x0, fullH, [[0, P.top], [1, P.bottom]]);
+                    cv.fillRect(x0, -OVER, W - x0, OVER, P.top); cv.fillRect(x0, fullH, W - x0, OVER, P.bottom);
                     for (let r = 340; r > 20; r -= 16) cv.circle(300, 120, r, G.withAlpha(P.glow, 0.016));
                     for (let r = 300; r > 20; r -= 16) cv.circle(1300, fullH - 60, r, G.withAlpha(P.glow, 0.012));
                 }
                 // a little darker at the top and the bottom, as glass over the artwork
-                cv.gradientRect(0, 0, W, fullH, [[0, G.withAlpha('#000000', 0.3)], [0.45, G.withAlpha('#000000', 0)], [1, G.withAlpha('#000000', 0.4)]]);
+                cv.gradientRect(x0, 0, W - x0, fullH, [[0, G.withAlpha('#000000', 0.3)], [0.45, G.withAlpha('#000000', 0)], [1, G.withAlpha('#000000', 0.4)]]);
+                // the screen reaches past the page at the top and bottom (full screen): the same dimming there, so those
+                // rows match the page instead of showing the art undimmed
+                cv.fillRect(x0, -OVER, W - x0, OVER, G.withAlpha('#000000', 0.3)); cv.fillRect(x0, fullH, W - x0, OVER, G.withAlpha('#000000', 0.4));
             }
 
             function coverColumn(cv, Q, a, P, now) {
@@ -227,8 +330,9 @@ mgu.run({
                 cv.text(fit(cv, by, 22, s, M), x, ty, 22, G.withAlpha(WHITE, 0.62), M);
                 // the progress line, and the times under it
                 const py = ty + 28, pos = Math.max(0, position(now) - offset()), dur = cur.duration || 0;
-                cv.roundRect(x, py, s, 6, 3, G.withAlpha(WHITE, 0.2));
-                if (dur) cv.roundRect(x, py, Math.max(6, Math.min(1, pos / dur) * s), 6, 3, G.withAlpha(WHITE, 0.85));
+                // Apple Music's: a rounded bar a little thicker than a line, the played part white, the times under its ends
+                cv.roundRect(x, py, s, 7, 3.5, G.withAlpha(WHITE, 0.22));
+                if (dur) cv.roundRect(x, py, Math.max(7, Math.min(1, pos / dur) * s), 7, 3.5, G.withAlpha(WHITE, 0.92));
                 cv.text(mmss(pos), x, py + 30, 16, G.withAlpha(WHITE, 0.55), M);
                 if (dur) cv.text('-' + mmss(dur - pos), x + s, py + 30, 16, G.withAlpha(WHITE, 0.55), Object.assign({ align: 'right' }, M));
                 const state = !cur.playing ? 'Paused' : !clk ? 'Timed from the song change' : '';
@@ -246,7 +350,7 @@ mgu.run({
             /* the lyrics' layout for a song: each line wrapped, and where it sits (cached; textWidth isn't free) */
             let laid = null;          // { lines, w, blocks: [{ rows, top, h, gap }] }
             function layout(cv, lines, w) {
-                if (laid && laid.lines === lines && laid.w === w) return laid;
+                if (laid && laid.lines === lines && laid.w === w && laid.size === LYR.size) return laid;
                 const opt = { font: F_BOLD, literal: true }, blocks = [];
                 let y = 0;
                 lines.forEach((l) => {
@@ -255,7 +359,7 @@ mgu.run({
                     blocks.push({ rows: rows, top: y, h: h });
                     y += h + LYR.gap;
                 });
-                laid = { lines: lines, w: w, blocks: blocks };
+                laid = { lines: lines, w: w, blocks: blocks, size: LYR.size };
                 return laid;
             }
             let glide = { i: -2, from: 0, to: 0, at: 0, prev: -1 };    // the scroll to line i
@@ -266,7 +370,7 @@ mgu.run({
                     const shown = glide.i === -2 ? target : scrollOf(glide, 0, now);
                     glide = { i: i, from: shown, to: target, at: now, prev: glide.i };
                 }
-                const top = Q.A.y, bottom = Q.A.bottom, anchor = top + Math.round((bottom - top) * 0.3);
+                const top = Q.top || Q.A.y, bottom = Q.bottom || Q.A.bottom, anchor = top + Math.round((bottom - top) * (Q.glass ? 0.22 : 0.3));
                 const fadeIn = easeOut((now - glide.at) / FADE_MS);
                 cv.clip(Q.LX - 20, top, W - (Q.LX - 20), bottom - top);
                 const first = Math.max(0, i - 3);
@@ -315,7 +419,7 @@ mgu.run({
                 }
             }
             function drawPlain(cv, Q, text) {
-                cv.text('Lyrics (not synced to the song)', Q.LX, Q.A.y + 34, 18, G.withAlpha(WHITE, 0.6), { font: F_MED, literal: true });
+                cv.text('Lyrics (not synced to the song)', Q.LX, (Q.top || Q.A.y) + 34, 18, G.withAlpha(WHITE, 0.6), { font: F_MED, literal: true });
                 let y = Q.A.y + 80;
                 text.filter(Boolean).some((s, k) => {
                     const rows = wrap(cv, s, 32, Q.LW, 2, { font: F_BOLD, literal: true });
@@ -336,22 +440,37 @@ mgu.run({
                 // one clock for the frame in FRAME_MS steps: a frame like the last one isn't sent again
                 const now = Math.floor(Date.now() / FRAME_MS) * FRAME_MS;
                 const cv = ctx.canvas(W, H), A0 = FS.area(cv), fullH = H + (cv.extra || 0);
+                if (!!A0.own !== ownNow) {
+                    ownNow = !!A0.own;
+                    // back to full screen (after Settings, a pop-up, a renderer reconnect): BMW's bar hidden again
+                    if (ownNow && ctx.display && ctx.display._hmiBar) { ctx.display.hmiBarHidden = null; try { ctx.display._hmiBar(); } catch (e) { /* older kit */ } }
+                    else if (!ownNow) { shownKey = ''; showButtons(true); }
+                }
                 // in the HMI's own frame BMW draws its side-panel tab (<) over the left edge: content starts right of
                 // it, and the edge is shaded so the tab sits on a band of its own (Nov 18 photo)
                 const SIDE = A0.own ? 0 : 72, A = Object.assign({}, A0, { x: A0.x + SIDE, w: A0.w - SIDE });
-                const sideBand = () => { for (let i = 0; i < SIDE; i += 4) cv.fillRect(i, 0, 4, fullH, G.withAlpha('#000000', 0.5 * (1 - i / SIDE))); };
-                if (cv.chrome) G.frame(cv, ctx.theme(), ['Lyrics', 'Probe'], 0, []);
+                // BMW's back column (the left 84 screen px, under its < tab) shows the HMI's own copy of this picture, drawn
+                // without the blur and the dimming, so it came out lighter than the page (Nov 20 photo). Opaque fills draw
+                // the same in both: the column gets the backdrop's own left-edge colour, solid, blending into the page
+                const sideBand = (a, P) => {
+                    if (!SIDE) return;
+                    const c = edgeColour(a, P), w = 84, fade = 90;
+                    cv.fillRect(0, 0, w, fullH, c);
+                    for (let i = 0; i < fade; i += 3) cv.fillRect(w + i, 0, 3, fullH, G.withAlpha(c, 1 - (i + 1.5) / fade));
+                };
+                if (cv.chrome) G.frame(cv, ctx.theme(), settings.get('probe_tab') ? ['Lyrics', 'Probe'] : [], 0, []);   // no tabs: the ⋯ button opens Settings
                 if (!cur) follow();
                 if (!cur) {
                     const P = nameColours('Car Lyrics');
-                    backdrop(cv, null, now, P, fullH); sideBand();
+                    backdrop(cv, null, now, P, fullH); if (cv.bgEdge) cv.bgEdge(() => backdrop(cv, null, now, P, fullH, -300)); sideBand(null, P); hmiBg(null, P);
                     const cy = A.y + A.h / 2;
                     cv.text('Play a song on your phone', A.x + A.w / 2, cy - 6, 40, WHITE, { font: F_BOLD, align: 'center', literal: true });
                     cv.text('Apple Music over CarPlay, or any app over Bluetooth. The lyrics show up here.', A.x + A.w / 2, cy + 40, 22, G.withAlpha(WHITE, 0.62), { align: 'center', font: F_MED, literal: true });
                 } else {
-                    const P = nameColours(cur.title + cur.artist), a = artFor(), Q = geo(A);
-                    backdrop(cv, a, now, P, fullH); sideBand();
-                    coverColumn(cv, Q, a, P, now);
+                    LYR.size = LYR_SIZES[settings.get('lyrics_size')] || 50; LYR.lh = Math.round(LYR.size * 1.2); LYR.gap = Math.round(LYR.size * 0.48);
+                    const P = nameColours(cur.title + cur.artist), a = artFor(), Q = sideOn() ? geo(A) : geoGlass(A);
+                    backdrop(cv, a, now, P, fullH); if (cv.bgEdge) cv.bgEdge(() => backdrop(cv, a, now, P, fullH, -300)); sideBand(a, P); hmiBg(a, P);
+                    if (Q.glass) glassChrome(cv, Q, a, P, now); else { coverColumn(cv, Q, a, P, now); moreButton(cv, A); }
                     const lyr = lyrics.get({ title: cur.title, artist: cur.artist, album: cur.album, duration: cur.duration });
                     if (lyr.state === 'synced' && lyr.lines.length) drawSynced(cv, Q, lyr.lines, now);
                     else if (lyr.state === 'plain') drawPlain(cv, Q, lyr.text);
@@ -389,7 +508,9 @@ mgu.run({
             const PROBE_BTNS = ['BTN_PAGE', 'BTN_MORE', 'BTN_SAVE'];
             // the bar's buttons (software renderer only: where the kit runs the screen they are hidden anyway)
             let shownKey = '';
+            let ownNow = false;       // the kit runs the screen (full screen): BMW's bar is the kit's to hide, not ours
             const showButtons = (force) => {
+                if (ownNow) return;
                 const key = probe + '|' + !!clk;
                 if (key === shownKey && !force) return;
                 shownKey = key;
@@ -399,7 +520,7 @@ mgu.run({
             };
             ctx.onLayout(guard('layout', () => showButtons(true)));
             showButtons();
-            setInterval(guard('buttons', showButtons), 3000);
+            setInterval(guard('buttons', () => { if (!idle) showButtons(); }), 3000);
             ui.onClick('BTN_PROBE', guard('probe', () => { probe = !probe; page = 0; vpage = 0; showButtons(); }));
             const nextPage = () => { page = (page + 1) % PAGES.length; vpage = 0; };
             ui.onClick('BTN_PAGE', guard('page', nextPage));
@@ -426,7 +547,7 @@ mgu.run({
             };
             const saveNow = () => { saveReport(); say('Saved to ' + reportFile, 5000); };
             ui.onClick('BTN_SAVE', guard('save', saveNow));
-            setInterval(guard('report', () => { if (np.values().length) saveReport(); }), REPORT_MS);
+            setInterval(guard('report', () => { if (!idle && np.values().length) saveReport(); }), REPORT_MS);
 
             // the values that say most about what is playing first: metadata, item, title, state, time
             const RANK = /metadata|item|title|artist|album|state|time|track|song/i;
@@ -470,6 +591,33 @@ mgu.run({
             catalog = NP.scanCatalog();
             log.info('catalog: ' + (catalog.error ? 'error ' + catalog.error : catalog.total + ' interfaces, ' + catalog.hits.length + ' look like media'));
             np.start().then(() => log.info('subscribed: ' + JSON.stringify(np.status())), (e) => log.error('nowplaying start: ' + (e && e.stack || e)));
+
+            /* ---------- idle off screen: a minute after the screen goes, nothing runs until it's back ---------- */
+            // the app can't quit itself (an app that exits on its own gets its data wiped by the head unit), so it goes
+            // quiet instead: subscriptions closed, timers skip, caches dropped, memory collected
+            let idleTimer = null;
+            const goIdle = guard('idle', () => {
+                idleTimer = null;
+                if (idle || (ui.isVisible && ui.isVisible('MAIN'))) return;
+                idle = true;
+                np.pause(); cur = null; clk = null;
+                if (artwork.cache) artwork.cache.clear();
+                if (lyrics.cache) lyrics.cache.clear();
+                if (typeof global.gc === 'function') { try { global.gc(); } catch (e) { /* */ } }
+                log.info('idle: off screen, subscriptions closed');
+            });
+            if (ui.onVisible) ui.onVisible(guard('visible', (name, v) => {
+                if (name !== 'MAIN') return;
+                if (!v) { if (!idleTimer && !idle) idleTimer = setTimeout(goIdle, IDLE_MS); return; }
+                // back on screen (from Settings, another app): BMW may have put its bar back; in full screen, hide it again
+                if (ownNow && ctx.display && ctx.display._hmiBar) { ctx.display.hmiBarHidden = null; try { ctx.display._hmiBar(); } catch (e) { /* older kit */ } }
+                if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+                if (idle) {
+                    idle = false;
+                    np.start().then(() => log.info('awake: subscribed again'), (e) => log.error('nowplaying restart: ' + (e && e.message)));
+                }
+            }));
+            if (ui.isVisible && !ui.isVisible('MAIN')) idleTimer = setTimeout(goIdle, IDLE_MS);
             log.info('started ' + VERSION);
         } catch (e) {
             log.error('start: ' + (e && e.stack || e));

@@ -2,11 +2,16 @@
   "id": "f30_cluster",
   "title": "TJM F30 Cluster",
   "description": "Instrument cluster themes after the F-series 6WB look: Comfort, Sport and Eco Pro, following the drive mode",
-  "version": "0.7.21",
+  "version": "0.7.25",
   "vendor": "TJM",
   "loggingId": "OB32",
   "iconGlyph": "F30",
+  "i18n": true,
   "signals": {
+    "de.bmw.infotainment.hmi.hmicontext.HMIContext": {
+      "_instances": "HMI_CID",
+      "currentDisplayLanguage": "rs"
+    },
     "de.bmw.infotainment.vehicle.CDS": {
       "statusEngineSpeed2": "rs",
       "statusEngineTemperature": "rs",
@@ -54,8 +59,10 @@
     "de.bmw.infotainment.vehicle.Vehicle": {
       "statusMotorStartAuto": "s",
       "statusDayNightChangeOver": "rs",
+      "statusNewCurrentUnitsStatusExt": "rs",
+      "_units": "r1120 PS: the car's own units for the active driver profile (shared/units.js; the setting \"units\" Авто follows them). Catalogue: getter 46 (NON-ZERO), notifier 32814, so \"rs\" passes tools/signals/check_signals.py. READ ONLY: its setter newCurrentUnitsConfigExt is never declared. The kit's platform grant has the same field, but this app's own Vehicle entry replaces that grant, so it is named here",
       "_dayNight": "fix/colour-daynight: statusDayNightChangeOver is the car's own day/night verdict (config.dayNight), the night colours' first source; the sun at our position is the fallback. \"rs\" from the catalogue (reference/car/2026-11-15): getter id 19 (NON-ZERO), notifier id 32787, so the value is read once at start and not only at the next change (day/night changes twice a day)",
-      "_optional": "statusMotorStartAuto: auto start/stop (config.msa). statusNewCurrentUnitsStatusExt was dropped together with the vehicle.TPMS interface (the owner, 2026-11-15): in this app it only ever fed the tyre pressure / temperature conversions (hud.js carUnits -> _tyreBar / _tyreC), and nothing else reads it - {{u:temp}} and the rest follow the \"units\" setting, not the car"
+      "_optional": "statusMotorStartAuto: auto start/stop (config.msa). statusNewCurrentUnitsStatusExt was dropped with the vehicle.TPMS interface (2026-11-15) and is back since r1120 PS for the speed, distance and consumption units (see _units); the tyre conversions stay gone"
     },
     "de.bmw.infrastructure.VehicleCondition": {
       "VehicleCondition": "s",
@@ -188,6 +195,14 @@
           "Settings"
         ],
         [
+          "setting",
+          "lang"
+        ],
+        [
+          "setting",
+          "profileSets"
+        ],
+        [
           "button",
           "BTN_DIAG",
           "Діагностика"
@@ -204,6 +219,8 @@
       "kind": "settings",
       "title": "Settings",
       "skip": [
+        "lang",
+        "profileSets",
         "byMode",
         "hudLayout",
         "g20",
@@ -650,15 +667,11 @@
           "Off"
         ],
         [
-          "r8",
-          "R8"
-        ],
-        [
           "etc2",
           "ETC2"
         ]
       ],
-      "_about": "research3/MT config.sceneTex: the scene textures are dropped and the theme is built again when it changes"
+      "_about": "research3/MT config.sceneTex: the scene textures are dropped and the theme is built again when it changes. car-issues (the owner, 2026-11-19): 'R8' is gone - its 670 / 346-wide R8 textures have rows that are not whole 4-byte rows and the car shears them; ETC2 takes the files it has no @etc2 for (the two arcs) from their own RGBA files, as Off does. A saved 'r8' reads as Off"
     },
     {
       "key": "diagMbGap",
@@ -698,6 +711,53 @@
       "type": "bool",
       "default": false,
       "_about": "research3/MB config.mbRebuild.onMode"
+    },
+    {
+      "key": "units",
+      "label": "Одиниці",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Авто (як в авто)"
+        ],
+        [
+          "km",
+          "км, км/год"
+        ],
+        [
+          "mi",
+          "милі, mph"
+        ]
+      ]
+    },
+    {
+      "key": "profileSets",
+      "label": "Налаштування для кожного профілю",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "lang",
+      "label": "Мова / Language",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Авто"
+        ],
+        [
+          "uk",
+          "Українська"
+        ],
+        [
+          "en",
+          "English"
+        ]
+      ],
+      "_about": "r1120 LN: the app's language (shared/lang.js). auto = the head unit's (--currentLanguage at start, HMIContext.currentDisplayLanguage while running) when it is uk or en, else Ukrainian."
     }
   ],
   "config": {
@@ -1526,9 +1586,6 @@
         },
         "diagSceneTex": {
           "options": {
-            "r8": {
-              "sceneTex": "r8"
-            },
             "etc2": {
               "sceneTex": "etc2"
             }

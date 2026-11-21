@@ -1,8 +1,8 @@
 {
   "id": "dpf",
   "title": "TJM DPF Status",
-  "description": "Read-only diesel particulate filter status monitoring",
-  "version": "0.1.31",
+  "description": "Read-only BMW DPF monitoring for B57 and B47 diesel engines, with validated soot, ash and regeneration distance gauges.",
+  "version": "0.1.40",
   "vendor": "TJM",
   "loggingId": "OB03",
   "iconGlyph": "temp",
@@ -45,11 +45,7 @@
       "options": [
         [
           "auto",
-          "Use iDrive language"
-        ],
-        [
-          "en",
-          "English"
+          "English (auto)"
         ],
         [
           "de",
@@ -138,18 +134,42 @@
       ]
     },
     {
+      "key": "cluster6wbAvailable",
+      "label": "6WB cluster detected",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
       "key": "regenCluster",
       "label": "DPF notification on cluster",
       "type": "bool",
       "default": true,
-      "notification": true
+      "notification": true,
+      "when": {
+        "cluster6wbAvailable": true
+      }
     },
     {
       "key": "regenClusterTest",
       "label": "Test DPF cluster message",
       "type": "action",
-      "hint": "Three flashes each: yellow, red and green"
+      "hint": "Four alerts: Requested (yellow), Started and In Progress (red), Finished (green)",
+      "when": {
+        "cluster6wbAvailable": true
+      }
+    },
+    {
+      "key": "reloadEquipment",
+      "label": "Reload Equipment",
+      "type": "action",
+      "hint": "Read vehicle equipment again"
     }
   ],
-  "settingsTabInStandard": true
+  "settingsTabInStandard": true,
+  "requires": {
+    "idrive7-renderd": "2.1.19",
+    "mgu-inputgate": "1.2.1",
+    "bmrmodz-car-equipment": "0.1.4"
+  }
 }

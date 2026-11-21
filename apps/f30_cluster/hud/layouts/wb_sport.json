@@ -76,6 +76,10 @@
         "max": 260,
         "ticks": 13
       },
+      "mph": {
+        "max": 160,
+        "ticks": 8
+      },
       "minor": 10,
       "start": 230,
       "sweep": 260
@@ -175,7 +179,23 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
+    },
+    {
+      "id": "mph160",
+      "type": "text",
+      "z": 5,
+      "x": 544,
+      "y": 517,
+      "w": 90,
+      "h": 24,
+      "text": "160",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
     },
     {
       "id": "rpm1",
@@ -299,7 +319,7 @@
       "y": 233,
       "w": 100,
       "h": 24,
-      "text": "km/h",
+      "text": "{{wb:speedU}}",
       "font": "wb_cap",
       "color": "fg",
       "align": "center",
@@ -313,7 +333,7 @@
       "y": 233,
       "w": 200,
       "h": 24,
-      "text": "1/min x 1000",
+      "text": "{{wb:rpmCap}}",
       "font": "wb_cap",
       "color": "fg",
       "align": "center",
@@ -500,7 +520,7 @@
       "y": 623,
       "w": 130,
       "h": 24,
-      "text": "{{range}} km",
+      "text": "{{range}} {{wb:distU}}",
       "font": "wb_cap",
       "color": "fg",
       "align": "left",

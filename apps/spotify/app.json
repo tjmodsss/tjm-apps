@@ -2,7 +2,7 @@
   "id": "spotify",
   "title": "TJM Spotify Connect",
   "description": "Spotify Connect cockpit player and library browser for BMW iDrive 7",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "vendor": "TJM",
   "loggingId": "OB26",
   "iconGlyph": "music",
@@ -10,6 +10,10 @@
   "mguHmi": [
     "ID7"
   ],
+  "requires": {
+    "idrive7-renderd": "2.1.7",
+    "mgu-inputgate": "1.0.0"
+  },
   "screens": [
     {
       "name": "MAIN",

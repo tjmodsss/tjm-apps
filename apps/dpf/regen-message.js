@@ -13,6 +13,7 @@ const HALF_BLINK_MS = 500;
 const BLINK_MS = 6 * HALF_BLINK_MS;
 const ACTIVE_REPEAT_MS = 60000;
 const REQUESTED = { text: 'Requested', colour: '#ffd700' };
+const STARTED = { text: 'Started', colour: '#ff2a2a' };
 const ACTIVE = { text: 'In Progress', colour: '#ff2a2a' };
 const COMPLETE = { text: 'Finished', colour: '#23dc5a' };
 const BLANK = { text: '' };
@@ -23,7 +24,7 @@ function blink(message, elapsed) {
 }
 
 function testMessage(elapsed) {
-    const message = [REQUESTED, ACTIVE, COMPLETE][Math.floor(elapsed / BLINK_MS)];
+    const message = [REQUESTED, STARTED, ACTIVE, COMPLETE][Math.floor(elapsed / BLINK_MS)];
     return message ? blink(message, elapsed % BLINK_MS) : null;
 }
 
@@ -33,14 +34,20 @@ function createIndicator() {
     let startedAt = 0;
     return (state, now) => {
         if (state !== previous) {
-            message = state === 'requested' ? REQUESTED : state === 'active' ? ACTIVE
+            message = state === 'requested' ? REQUESTED : state === 'active' ? STARTED
                 : state === 'idle' && previous === 'active' ? COMPLETE : null;
             startedAt = now;
             previous = state;
         }
+        if (state === 'active') {
+            const elapsed = now - startedAt;
+            // Announce the transition once, then repeat "In Progress" each minute.
+            // "In Progress" follows the 3-second "Started" window immediately.
+            if (elapsed < BLINK_MS) return blink(STARTED, elapsed);
+            return blink(ACTIVE, (elapsed - BLINK_MS) % ACTIVE_REPEAT_MS);
+        }
         if (!message) return null;
-        const elapsed = now - startedAt;
-        return blink(message, state === 'active' ? elapsed % ACTIVE_REPEAT_MS : elapsed);
+        return blink(message, now - startedAt);
     };
 }
 
@@ -50,7 +57,7 @@ function draw(socket, message, frame) {
         const style = { font: 'bold', literal: true };
         const prefix = t(PREFIX);
         const status = t(message.text);
-        const longestState = Math.max(...[REQUESTED, ACTIVE, COMPLETE]
+        const longestState = Math.max(...[REQUESTED, STARTED, ACTIVE, COMPLETE]
             .map(state => canvas.textWidth(t(state.text), FONT_SIZE, style)));
         const maxTextWidth = canvas.textWidth(prefix, FONT_SIZE, style) + longestState;
         const fontSize = maxTextWidth > WIDTH - STATE_GAP - 16

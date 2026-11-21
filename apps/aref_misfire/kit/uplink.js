@@ -47,18 +47,24 @@ function trustedCa(dir) {
  * lease's DNS servers (one dns.Resolver, made again only when the servers change), or undefined when
  * there are none (the system resolver, e.g. a PC).
  */
+const DNS_TTL_MS = 300000;    // answers kept 5 min: a lookup is a round trip saved per request
+
 function resolver() {
     let res = null, key = '';
+    const cache = new Map();      // hostname -> { addr, until }
     return function lookupFor(l) {
         const servers = l && Array.isArray(l.dns) ? l.dns.filter((s) => typeof s === 'string' && s) : [];
         if (!servers.length) return undefined;
         const k = servers.join(',');
-        if (k !== key) { res = new dns.Resolver(); res.setServers(servers); key = k; }
+        if (k !== key) { res = new dns.Resolver(); res.setServers(servers); key = k; cache.clear(); }
         const r = res;
         return (hostname, options, cb) => {
             if (typeof options === 'function') cb = options;
+            const hit = cache.get(hostname);
+            if (hit && hit.until > Date.now()) { setImmediate(() => cb(null, hit.addr, 4)); return; }
             r.resolve4(hostname, (err, addrs) => {
                 if (err || !addrs || !addrs.length) { cb(err || new Error('no address for ' + hostname)); return; }
+                cache.set(hostname, { addr: addrs[0], until: Date.now() + DNS_TTL_MS });
                 cb(null, addrs[0], 4);
             });
         };

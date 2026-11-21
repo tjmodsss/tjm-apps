@@ -117,6 +117,8 @@ class Display {
         settings.onChange((k) => {
             if (k === 'layout' || k === 'renderer') this.closeSheet();
             if (k === 'layout') { this._place(); this.lastWords = null; }
+            if (k === 'hide_back_arrow') this.lastWords = null;
+            if (k === 'hide_status_bar') { this._place(); this.lastWords = null; this._layoutChanged(); }
             if (k === 'theme') this.bgShown = null;
             if (k === 'renderer') this._mode();
         });
@@ -792,6 +794,19 @@ class Display {
         const pl = this.place, t = this.theme(), W = pl.w, H = pl.h;
         const c = this.chromeRec || (this.chromeRec = new Recorder(W, H));
         c.reset();
+        if (this._bare()) {
+            // no header, no see-through status corner: only the back column's arrow hole (unless hidden), the page's
+            // background continued into that column from the top, and a slim bar if the app has one
+            const hx0 = HMI.left - pl.x, by0 = H - this.barH();
+            const btns0 = this.buttons().map((b) => ({ id: b.id, label: b.label, x: b.x - this.barOff - pl.x, w: b.w }));
+            if (btns0.length && this.barH()) G.menuBar(c, t, 0, by0, W, FULL.barH, btns0, btns0.findIndex((b) => b.id === this.focused), 'slim', -1);
+            const arrow0 = this.screen.backArrow !== false && !(this.settings && this.settings.get('hide_back_arrow'));
+            if (hx0 > 0 && arrow0) c.clip(0, HMI.back.y - pl.y, hx0, HMI.back.h).clear(0).noclip();
+            r.xf(1, 0, 0);
+            this._bleed(r, 0, H);
+            r.append(c).xf();
+            return;
+        }
         const tb = this.own() ? this._tabList() : r.chrome.tabs || { tabs: [], sel: -1, badges: [] };
         // compact header in the HMI strip's own black, only as wide as its name, tabs and badges:
         // right of it the HMI's strip shows through (radio station, phone signal, status icons)
@@ -833,7 +848,10 @@ class Display {
         // mark the HMI draws above it when its bar is wider than the screen (eDrive's "Reset drive totals")
         c.clip(sx, 0, W - sx, HMI.status.h).clear(0).noclip();
         // of the column: the home button's strip and the back arrow (the rest shows the page's background)
-        if (hx > 0) { c.clip(0, 0, hx, FULL.headH - pl.y).clear(0).noclip(); c.clip(0, HMI.back.y - pl.y, hx, HMI.back.h).clear(0).noclip(); }
+        // (an app can hide the arrow: app.json screen "backArrow": false, or its setting "hide_back_arrow"; the spot still
+        // goes back when touched, and the controller's back does too)
+        const arrow = this.screen.backArrow !== false && !(this.settings && this.settings.get('hide_back_arrow'));
+        if (hx > 0) { c.clip(0, 0, hx, FULL.headH - pl.y).clear(0).noclip(); if (arrow) c.clip(0, HMI.back.y - pl.y, hx, HMI.back.h).clear(0).noclip(); }
         drawCredit(c, W - 18, FULL.headH + 17);
         r.xf(1, 0, 0);
         this._bleed(r, FULL.headH - pl.y, H);
@@ -909,7 +927,13 @@ class Display {
         if (this.place) this._place();
     }
     /** Header height: 0 for "chrome": false (the app draws the whole screen itself, e.g. a game). */
-    headH() { return this.screen && this.screen.chrome === false ? 0 : FULL.headH; }
+    headH() { return this.screen && this.screen.chrome === false ? 0 : this._bare() ? 0 : FULL.headH; }
+    /**
+     * Bare full screen: the app's setting "hide_status_bar" (or screen "statusBar": false) - no header and none of
+     * the HMI's title strip (clock, signal, profile): the page reaches the screen's top. The HMI still gets touches
+     * on its Home button and back arrow column (they're just not drawn); the controller's back works too.
+     */
+    _bare() { return !!(this.own() && ((this.screen && this.screen.statusBar === false) || (this.settings && this.settings.get('hide_status_bar')))); }
 
     /**
      * The HMI's bar buttons in screen pixels, unscrolled: [{ id, label, x, w }]. Where the kit runs

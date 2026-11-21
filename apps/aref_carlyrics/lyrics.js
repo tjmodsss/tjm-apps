@@ -116,10 +116,14 @@ class Lyrics {
      * request(method, host, path, headers) -> Promise<{ status, body: Buffer }> (Spotify.request: the
      * uplink's DNS and CA). ua: the User-Agent LRCLIB asks for.
      */
-    constructor(request, log, ua) {
+    /** dir (optional): a folder of LRCLIB records kept on disk (<diskKey>.json), read before asking LRCLIB, so a
+     * song played before (or put there by the homelab's lyrics pack) shows offline. */
+    constructor(request, log, ua, dir) {
         this.request = request;
         this.log = log;
         this.ua = ua;
+        this.dir = dir || null;
+        if (this.dir) { try { require('fs').mkdirSync(this.dir); } catch (e) { /* there */ } }
         this.cache = new Map();      // key -> entry (insertion order = age)
         this.busy = new Map();       // key -> started (ms)
     }
@@ -158,7 +162,25 @@ class Lyrics {
         return JSON.parse(r.body.toString('utf8'));
     }
 
+    /** The disk file for a song: title and main artist only (the homelab's pack knows no album or duration). */
+    static diskKey(track) {
+        return require('crypto').createHash('sha1').update(norm(baseTitle(track.title)) + '|' + norm(mainArtist(track))).digest('hex').slice(0, 16);
+    }
+
     async _lookup(track) {
+        const fs = require('fs'), path = require('path');
+        const f = this.dir ? path.join(this.dir, Lyrics.diskKey(track) + '.json') : null;
+        if (f) {
+            try {
+                const v = entryOf(JSON.parse(fs.readFileSync(f, 'utf8')));
+                if (v.state !== 'none') { this.log.info('lyrics: ' + v.state + ' from disk'); return v; }
+            } catch (e) { /* not kept */ }
+        }
+        const v = await this._lookupNet(track);
+        return v;
+    }
+
+    async _lookupNet(track) {
         const artist = mainArtist(track), secs = Math.round((track.duration || 0) / 1000);
         const titles = [track.title];
         if (baseTitle(track.title) !== track.title) titles.push(baseTitle(track.title));
@@ -178,6 +200,12 @@ class Lyrics {
         }
         const v = entryOf(rec);
         this.log.info('lyrics: ' + v.state + (v.lines ? ' (' + v.lines.length + ' lines)' : ''));
+        if (this.dir && rec && (rec.syncedLyrics || rec.plainLyrics || rec.instrumental)) {
+            try {
+                require('fs').writeFileSync(require('path').join(this.dir, Lyrics.diskKey(track) + '.json'),
+                    JSON.stringify({ trackName: rec.trackName, artistName: rec.artistName, syncedLyrics: rec.syncedLyrics || null, plainLyrics: rec.plainLyrics || null, instrumental: !!rec.instrumental }));
+            } catch (e) { /* full disk: online only */ }
+        }
         return v;
     }
 

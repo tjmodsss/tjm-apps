@@ -6,7 +6,8 @@ const catalogs = require('./locales');
 
 function start(ctx) {
     const { ui, settings, log } = ctx;
-    const options = settings.item('language').options;
+    const languageSetting = settings.item('language');
+    const languages = languageSetting.options.map(option => option.slice());
     const nativeButtons = {
         BTN_PAGE: 'Next page',
         BTN_PREV: 'Previous page',
@@ -21,10 +22,15 @@ function start(ctx) {
         const catalog = Object.prototype.hasOwnProperty.call(catalogs, requested) ? catalogs[requested] : null;
         language = catalog ? requested : 'en';
         setRuntimeTranslations(catalog);
-        const name = options.find(([code]) => code === detected)[1];
-        options[0][1] = t('Automatic') + ' (' + name + ')';
+        languageSetting.options = languages.map(([code, label]) =>
+            code === detected ? ['auto', label + ' (auto)'] : [code, label]);
         for (const [button, label] of Object.entries(nativeButtons)) ui.text(button, t(label));
-        ui.text('SET_LANGUAGE', options[0][1], 0, 'ItemText');
+        languageSetting.options.forEach(([, label], index) => {
+            ui.text('SET_LANGUAGE', label, index, 'ItemText');
+        });
+        if (preference === detected) settings.set('language', 'auto');
+        const selected = languageSetting.options.findIndex(([code]) => code === settings.get('language'));
+        ui.selected('SET_LANGUAGE', Math.max(0, selected));
 
         for (const setting of settings.schema) {
             if (setting.hidden) continue;

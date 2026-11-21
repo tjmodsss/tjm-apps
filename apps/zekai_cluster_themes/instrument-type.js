@@ -9,13 +9,13 @@ const TEXT_SIZE_RATIO = 0.9;
 
 function instrumentType(canvas, x, y, scale, ink, sizeRatio = 1) {
     const textScale = scale * TEXT_SIZE_RATIO * sizeRatio;
-    const measure = (value, size, weight = 'regular') => canvas.textWidth(value, size * textScale, {
-        literal: true, font: FONTS[weight],
+    const measure = (value, size, weight = 'regular', hanFallback = false) => canvas.textWidth(value, size * textScale, {
+        literal: true, font: FONTS[weight], hanFallback,
     }) / scale;
     return {
-        text(value, cx, cy, size, colour = ink, weight = 'regular', spacing = 0) {
+        text(value, cx, cy, size, colour = ink, weight = 'regular', spacing = 0, hanFallback = false) {
             return canvas.text(value, x(cx), y(cy), size * textScale, colour, {
-                align: 'center', literal: true, font: FONTS[weight], spacing: spacing * textScale,
+                align: 'center', literal: true, font: FONTS[weight], spacing: spacing * textScale, hanFallback,
             });
         },
         measure,
@@ -27,4 +27,4 @@ function instrumentType(canvas, x, y, scale, ink, sizeRatio = 1) {
     };
 }
 
-module.exports = { instrumentType, FONTS };
+module.exports = { instrumentType, FONTS, TEXT_SIZE_RATIO };

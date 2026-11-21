@@ -214,6 +214,15 @@ class NowPlaying {
 
     stop() { if (this.timer) clearInterval(this.timer); this.timer = null; }
 
+    /** Idle: every subscription closed (no signals, no re-reads) and what was seen forgotten; start() again to wake. */
+    pause() {
+        this.stop();
+        const subs = this.subs || [];
+        this.subs = [];
+        subs.forEach((r) => { if (r.sub && r.sub.shutdown) r.sub.shutdown(); });
+        if (this.store && this.store.clear) this.store.clear();
+    }
+
     _put(iface, inst, field, value) {
         const key = shortName(iface) + '/' + inst + '.' + field;
         const text = textOf(value), now = Date.now();

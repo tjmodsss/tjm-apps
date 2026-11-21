@@ -2,11 +2,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const { PANEL_WIDTH, PANEL_HEIGHT, panelLayout, SILVER_SIDE_DIALS, SILVER_SIDE_Y } = require('./panel-layout');
+const { PANEL_WIDTH, PANEL_HEIGHT, panelLayout, PORSCHE_DIALS, SILVER_SIDE_DIALS, SILVER_SIDE_Y } = require('./panel-layout');
 
 const STATUS_AGE_MS = 4000;
 const REFRESH_MS = 750;
 const PANEL_HANDOFF_MS = 1200;
+// Waze accepts window files up to three whole seconds old.
+const EXPIRED_WINDOW_MS = 5000;
 const MAP_SLOT = { leftInner: 306, rightInner: 654 };
 
 class MapWindow {
@@ -44,18 +46,25 @@ class MapWindow {
                 return this.wait('Waze: no recent map status');
             }
             const state = JSON.parse(fs.readFileSync(this.status, 'utf8'));
-            if (state.cluster === 0 || state.paused) return this.wait('Waze: cluster display off or paused');
-            if (!['showing', 'starting'].includes(state.state)) return this.wait('Waze: waiting for map stream');
+            if (state.cluster === 0 || state.cluster === false || ['off', 'paused'].includes(state.state) || state.paused) {
+                return this.wait('Waze: enable Cluster output and resume the map');
+            }
+            if (state.hosted) return this.wait('Waze: another layout is hosting the map');
             if (!['map', 'panel'].includes(state.target)) return this.wait('Waze: enable Cluster output');
+            if (!['showing', 'starting', 'idle'].includes(state.state)) {
+                return this.wait(state.state === 'error' ? 'Waze: map provider reported an error' : 'Waze: waiting for the phone map');
+            }
             if (this.fd === null) {
-                this.claim(leaseKey);
-                this.confirmAfter = state.target === 'panel' ? now + PANEL_HANDOFF_MS : now;
+                this.claim(leaseKey, now);
+                this.confirmAfter = now + (state.target === 'panel' ? PANEL_HANDOFF_MS : 0);
             }
             if (!this.owns()) return this.wait('Waze: window held by another app');
             const stamp = new Date(now);
             fs.futimesSync(this.fd, stamp, stamp);
             if (state.target === 'panel' && state.state === 'showing' && st.mtimeMs >= this.confirmAfter) this.active = side;
-            this.message = this.active ? '' : 'Waze: waiting for panel window support';
+            this.message = this.active ? '' : state.target === 'map' && state.state === 'showing'
+                ? 'Waze: map is in BMW view, waiting for panel-window support'
+                : 'Waze: waiting for the phone map on the instrument panel';
         } catch (error) {
             if (!this.warned && error.code !== 'ENOENT' && error.code !== 'EEXIST') {
                 this.warned = true;
@@ -73,7 +82,7 @@ class MapWindow {
         return null;
     }
 
-    claim(leaseKey) {
+    claim(leaseKey, now) {
         try {
             fs.mkdirSync(this.dir, 0o1777);
             fs.chmodSync(this.dir, 0o1777);
@@ -81,8 +90,20 @@ class MapWindow {
             if (error.code !== 'EEXIST') throw error;
         }
         if (!fs.lstatSync(this.dir).isDirectory()) throw new Error('Waze handoff directory is unavailable');
-        this.fd = fs.openSync(this.file, 'wx', 0o644);
+        try {
+            this.fd = fs.openSync(this.file, 'wx', 0o644);
+        } catch (error) {
+            if (error.code !== 'EEXIST') throw error;
+            const expired = fs.lstatSync(this.file);
+            if (!expired.isFile() || expired.size > 80 || now - expired.mtimeMs < EXPIRED_WINDOW_MS ||
+                !/^panel \d+ \d+ \d+ \d+\s*$/.test(fs.readFileSync(this.file, 'utf8'))) throw error;
+            const current = fs.lstatSync(this.file);
+            if (current.dev !== expired.dev || current.ino !== expired.ino || current.mtimeMs !== expired.mtimeMs) throw error;
+            fs.unlinkSync(this.file);
+            this.fd = fs.openSync(this.file, 'wx', 0o644);
+        }
         fs.writeFileSync(this.fd, 'panel ' + leaseKey + '\n');
+        fs.fchmodSync(this.fd, 0o644);
         this.leaseKey = leaseKey;
     }
 
@@ -110,8 +131,9 @@ class MapWindow {
 function rectangle(side, theme) {
     if (side === 'fullMap') return { x: 0, y: 0, w: PANEL_WIDTH, h: PANEL_HEIGHT };
     const layout = panelLayout(theme);
-    const cx = theme === 'silver' ? SILVER_SIDE_DIALS[side] : MAP_SLOT[side];
-    const top = theme === 'silver' ? SILVER_SIDE_Y - 26.5 : 137.5;
+    const [cx, cy] = theme === 'five' ? PORSCHE_DIALS[side]
+        : theme === 'silver' ? [SILVER_SIDE_DIALS[side], SILVER_SIDE_Y] : [MAP_SLOT[side], 164];
+    const top = cy - 26.5;
     const x = Math.round(layout.x + (cx - 60) * layout.scale);
     const y = Math.round(layout.y + top * layout.scale);
     return { x, y, w: Math.round(120 * layout.scale), h: Math.round(53 * layout.scale) };

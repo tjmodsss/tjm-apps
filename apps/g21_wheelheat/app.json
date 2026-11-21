@@ -2,7 +2,7 @@
   "id": "g21_wheelheat",
   "title": "TJM Heating Comfort",
   "description": "Automatic seat and steering-wheel heating with control-unit detection (BDC or seat modules), adjustable settings, manual controls, and diagnostic logs. Beta.",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "mguAppStartType": "autostart",
   "vendor": "TJM",
   "loggingId": "OB1B",
@@ -156,8 +156,20 @@
       "default": true
     },
     {
+      "key": "smfaDriverAuto",
+      "label": "Experimental SMFA driver heating",
+      "type": "bool",
+      "default": false
+    },
+    {
       "key": "seatPassenger",
       "label": "Passenger seat heating",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "smbfPassengerAuto",
+      "label": "Experimental SMBF passenger heating",
       "type": "bool",
       "default": false
     },

@@ -21,9 +21,11 @@ const TOPICS = {
     climate: { name: 'Climate', iface: /climate|hvac|ihka|klima|airconditioning/i, member: /temperature|fan|blower|airflow|seatheat|ventilat|defrost|setpoint/i },
     lights: { name: 'Exterior lights', iface: /light|lamp|flm|headlight|welcome/i, member: /welcome|daytime|drl|lowbeam|highbeam|headlight|cominghome|leavinghome/i },
     body: { name: 'Doors, locks, windows', iface: /door|lock|window|body|bdc|central/i, member: /door|lock|window|trunk|tailgate|mirror|sunroof/i },
+    drive: { name: 'Drive modes, hybrid, battery', iface: /drivingexperience|drivingexcitement|efficiencytainment|hybrid|charging|battery|electri|edrive|powertrain|fes\b/i,
+        member: /drivingexperience|drivemode|modedriving|drivedynamic|switchdrive|sport|comfort|ecopro|hybrid|electric|edrive|battery|stateofcharge|\bsoc\b|charg|precondition/i },
     fuel: { name: 'Fuel, range, odometer', iface: /kombi|fuel|tank|range|bordcomputer/i, member: /fuel|tank|range|mileage|odometer|consumption/i },
 };
-const ORDER = ['ambient', 'route', 'gps', 'media', 'climate', 'lights', 'body', 'fuel'];
+const ORDER = ['ambient', 'route', 'gps', 'media', 'climate', 'lights', 'body', 'drive', 'fuel'];
 
 /** Every JSON key (any depth) in a definition, with how it is used (a field, a method, a broadcast...). */
 function namesIn(def) {

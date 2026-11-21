@@ -110,6 +110,10 @@
         "max": 260,
         "ticks": 13
       },
+      "mph": {
+        "max": 160,
+        "ticks": 8
+      },
       "minor": 10,
       "start": 230,
       "sweep": 260
@@ -322,7 +326,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd1",
@@ -336,7 +341,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd2",
@@ -350,7 +356,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd3",
@@ -364,7 +371,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd4",
@@ -378,7 +386,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd5",
@@ -392,7 +401,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd6",
@@ -406,7 +416,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd7",
@@ -420,7 +431,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd8",
@@ -434,7 +446,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd9",
@@ -448,7 +461,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd10",
@@ -462,7 +476,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd11",
@@ -476,7 +491,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd12",
@@ -490,7 +506,8 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
     },
     {
       "id": "spd13",
@@ -504,7 +521,143 @@
       "font": "wb_spd",
       "color": "fg",
       "align": "center",
-      "conn": 1
+      "conn": 1,
+      "toggle": "!u:mi"
+    },
+    {
+      "id": "mph0",
+      "type": "text",
+      "z": 5,
+      "x": 180,
+      "y": 525,
+      "w": 90,
+      "h": 24,
+      "text": "0",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph20",
+      "type": "text",
+      "z": 5,
+      "x": 129,
+      "y": 399,
+      "w": 90,
+      "h": 24,
+      "text": "20",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph40",
+      "type": "text",
+      "z": 5,
+      "x": 151,
+      "y": 267,
+      "w": 90,
+      "h": 24,
+      "text": "40",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph60",
+      "type": "text",
+      "z": 5,
+      "x": 238,
+      "y": 166,
+      "w": 90,
+      "h": 24,
+      "text": "60",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph80",
+      "type": "text",
+      "z": 5,
+      "x": 367,
+      "y": 122,
+      "w": 90,
+      "h": 24,
+      "text": "80",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph100",
+      "type": "text",
+      "z": 5,
+      "x": 493,
+      "y": 170,
+      "w": 90,
+      "h": 24,
+      "text": "100",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph120",
+      "type": "text",
+      "z": 5,
+      "x": 576,
+      "y": 271,
+      "w": 90,
+      "h": 24,
+      "text": "120",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph140",
+      "type": "text",
+      "z": 5,
+      "x": 597,
+      "y": 398,
+      "w": 90,
+      "h": 24,
+      "text": "140",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
+    },
+    {
+      "id": "mph160",
+      "type": "text",
+      "z": 5,
+      "x": 544,
+      "y": 517,
+      "w": 90,
+      "h": 24,
+      "text": "160",
+      "font": "wb_spd",
+      "color": "fg",
+      "align": "center",
+      "conn": 1,
+      "toggle": "u:mi"
     },
     {
       "id": "rpm1",
@@ -612,7 +765,7 @@
       "y": 233,
       "w": 100,
       "h": 24,
-      "text": "km/h",
+      "text": "{{wb:speedU}}",
       "font": "wb_cap",
       "color": "fg",
       "align": "center",
@@ -626,7 +779,7 @@
       "y": 233,
       "w": 200,
       "h": 24,
-      "text": "1/min x 1000",
+      "text": "{{wb:rpmCap}}",
       "font": "wb_cap",
       "color": "fg",
       "align": "center",
@@ -640,7 +793,7 @@
       "y": 451,
       "w": 110,
       "h": 22,
-      "text": "READY",
+      "text": "{{wb:ready}}",
       "font": "wb_capb",
       "color": "fg",
       "align": "center",
@@ -654,7 +807,7 @@
       "y": 523,
       "w": 70,
       "h": 24,
-      "text": "OFF",
+      "text": "{{wb:off}}",
       "font": "wb_cap",
       "color": "dim",
       "align": "center",
@@ -761,7 +914,11 @@
       "color": "fg",
       "align": "center",
       "conn": 1,
-      "toggle": "own:nav"
+      "toggle": "own:nav",
+      "shields": {
+        "font": "wb_shield",
+        "top": 11
+      }
     },
     {
       "id": "cc_line",

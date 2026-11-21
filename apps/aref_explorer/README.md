@@ -28,6 +28,7 @@ or members match, best first:
 | Climate | temperatures, fan, seat heating and ventilation |
 | Exterior lights | welcome lights, daytime running lights, headlights |
 | Doors, locks, windows | doors, locks, windows, tailgate, mirrors, sunroof |
+| Drive modes, hybrid, battery | the drive mode switch (Sport, Comfort, Eco Pro), hybrid and electric modes, battery charge and temperature, charging |
 | Fuel, range, odometer | tank, range, mileage, consumption |
 
 **Next topic** steps through them; **More** pages through a long list. **Details** opens the first

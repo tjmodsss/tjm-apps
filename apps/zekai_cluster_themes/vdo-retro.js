@@ -200,7 +200,9 @@ function vdoPanel(canvas, data, opts = {}) {
                 const xx = left + 7 + col * 19, yy = 162 + row * 16;
                 round(xx, yy, 15, 13, 2, '#151719');
                 const glass = row === 0 ? firstRowLamps[col] : '#202326';
-                circle(xx + 7.5, yy + 6.5, 4.2, glass);
+                const lit = row === 0 && col === 0 && data.turnLamp === true;
+                if (lit) circle(xx + 7.5, yy + 6.5, 6.3, '#38f37355');
+                circle(xx + 7.5, yy + 6.5, 4.2, lit ? '#59eb83' : glass);
                 canvas.strokeRoundRect(x(xx), y(yy), 15 * scale, 13 * scale, 2 * scale, 0.8 * scale, '#3c4144');
             }
         }

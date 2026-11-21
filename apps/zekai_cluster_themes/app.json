@@ -2,10 +2,11 @@
   "id": "zekai_cluster_themes",
   "title": "TJM Instrument Themes",
   "vendor": "TJM",
-  "version": "0.8.7",
+  "version": "0.8.25",
   "loggingId": "OB34",
   "description": "Persistent, auto-starting instrument themes for BMW iDrive 7. Choose a theme in the app; select BMW original to turn the overlay off.",
   "autostart": true,
+  "internet": true,
   "iconGlyph": "gauge",
   "mguHmi": [
     "ID7"
@@ -41,7 +42,8 @@
     },
     "de.bmw.infotainment.vehicle.CDS": {
       "statusEngineSpeed2": "rs",
-      "statusEngineTemperature": "rs"
+      "statusEngineTemperature": "rs",
+      "statusBattery2": "rs"
     },
     "de.bmw.infotainment.KombiIF": {
       "statusRangeTankStatus": "rs",
@@ -61,13 +63,41 @@
       "ExteriorTemperature": "s",
       "_optional": "Outside temperature"
     },
+    "de.bmw.body.Light": {
+      "StatusFunctionsIndicators": "s",
+      "StatusFunctionsIndicators2": "s",
+      "_optional": "VW 2000 turn indicator"
+    },
     "de.bmw.infotainment.hmi.hmimediastate.HmiMediaState": {
       "_instances": "HMI_CID",
       "playerMetadata": "rs",
+      "coverArt": "rs",
       "_optional": "Front-seat Now playing title and artist"
+    },
+    "de.bmw.infotainment.entertainment.mediaplayer.MediaPlayer": {
+      "_instances": "CarPlayMedia",
+      "currentItemMetadata": "rs",
+      "playerState": "rs",
+      "_optional": "Apple CarPlay Now playing"
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ],
+      "_optional": "Read-only 12 V and engine oil readings"
     }
   },
   "settings": [
+    {
+      "key": "onlineCoverArt",
+      "label": "Online album covers (share track details)",
+      "type": "bool",
+      "default": false
+    },
     {
       "key": "clusterOverlayEnabled",
       "label": "Start selected theme at boot",
@@ -86,11 +116,11 @@
         ],
         [
           "five",
-          "Five Dial"
+          "Porsche"
         ],
         [
           "silver",
-          "Silver Trio"
+          "Rolls Royce"
         ],
         [
           "digital",
@@ -102,30 +132,268 @@
         ],
         [
           "vdoRetro",
-          "VDO Retro 2000"
+          "VW 2000"
+        ]
+      ]
+    },
+    {
+      "key": "clockZone",
+      "label": "Clock / Time zone",
+      "group": "Clock",
+      "type": "choice",
+      "default": "bc",
+      "options": [
+        [
+          "bc",
+          "Vancouver (UTC−7)"
+        ],
+        [
+          "vehicle",
+          "Head unit clock"
+        ],
+        [
+          "pacific",
+          "US Pacific"
+        ],
+        [
+          "utc",
+          "UTC"
+        ],
+        [
+          "custom",
+          "Custom UTC offset"
+        ]
+      ]
+    },
+    {
+      "key": "clockOffset",
+      "label": "Clock / UTC offset",
+      "group": "Clock",
+      "type": "number",
+      "default": -7,
+      "unit": "h",
+      "when": {
+        "clockZone": "custom"
+      },
+      "steps": [
+        -12,
+        -11.75,
+        -11.5,
+        -11.25,
+        -11,
+        -10.75,
+        -10.5,
+        -10.25,
+        -10,
+        -9.75,
+        -9.5,
+        -9.25,
+        -9,
+        -8.75,
+        -8.5,
+        -8.25,
+        -8,
+        -7.75,
+        -7.5,
+        -7.25,
+        -7,
+        -6.75,
+        -6.5,
+        -6.25,
+        -6,
+        -5.75,
+        -5.5,
+        -5.25,
+        -5,
+        -4.75,
+        -4.5,
+        -4.25,
+        -4,
+        -3.75,
+        -3.5,
+        -3.25,
+        -3,
+        -2.75,
+        -2.5,
+        -2.25,
+        -2,
+        -1.75,
+        -1.5,
+        -1.25,
+        -1,
+        -0.75,
+        -0.5,
+        -0.25,
+        0,
+        0.25,
+        0.5,
+        0.75,
+        1,
+        1.25,
+        1.5,
+        1.75,
+        2,
+        2.25,
+        2.5,
+        2.75,
+        3,
+        3.25,
+        3.5,
+        3.75,
+        4,
+        4.25,
+        4.5,
+        4.75,
+        5,
+        5.25,
+        5.5,
+        5.75,
+        6,
+        6.25,
+        6.5,
+        6.75,
+        7,
+        7.25,
+        7.5,
+        7.75,
+        8,
+        8.25,
+        8.5,
+        8.75,
+        9,
+        9.25,
+        9.5,
+        9.75,
+        10,
+        10.25,
+        10.5,
+        10.75,
+        11,
+        11.25,
+        11.5,
+        11.75,
+        12,
+        12.25,
+        12.5,
+        12.75,
+        13,
+        13.25,
+        13.5,
+        13.75,
+        14
+      ]
+    },
+    {
+      "key": "clockCorrection",
+      "label": "Clock / Minute correction",
+      "group": "Clock",
+      "type": "number",
+      "default": 0,
+      "unit": "min",
+      "steps": [
+        -30,
+        -29,
+        -28,
+        -27,
+        -26,
+        -25,
+        -24,
+        -23,
+        -22,
+        -21,
+        -20,
+        -19,
+        -18,
+        -17,
+        -16,
+        -15,
+        -14,
+        -13,
+        -12,
+        -11,
+        -10,
+        -9,
+        -8,
+        -7,
+        -6,
+        -5,
+        -4,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "key": "clockFormat",
+      "label": "Clock / Time format",
+      "group": "Clock",
+      "type": "choice",
+      "default": "24",
+      "options": [
+        [
+          "24",
+          "24-hour"
+        ],
+        [
+          "12",
+          "12-hour"
         ]
       ]
     },
     {
       "key": "five_faceColour",
-      "label": "Five Dial / Face colour",
+      "label": "Porsche / Face colour",
       "type": "choice",
       "default": "navy",
       "when": {
         "instrumentTheme": "five"
       },
+      "aliases": {
+        "teal": "navy"
+      },
       "options": [
         [
           "navy",
-          "Original navy"
+          "Graphite"
         ],
         [
           "blue",
-          "Slate blue"
+          "Electric blue"
         ],
         [
-          "teal",
-          "Petrol green"
+          "silver",
+          "Pearl white"
         ],
         [
           "magenta",
@@ -133,15 +401,27 @@
         ],
         [
           "red",
-          "Red centre ring"
+          "Red ring / Black"
+        ],
+        [
+          "yellow",
+          "Yellow ring / Black"
+        ],
+        [
+          "whiteRing",
+          "White ring / Black"
+        ],
+        [
+          "blueRing",
+          "Blue ring / Black"
         ]
       ]
     },
     {
       "key": "five_speedPosition",
-      "label": "Five Dial / Digital speed",
+      "label": "Porsche / Digital speed",
       "type": "choice",
-      "default": "centre",
+      "default": "lower",
       "when": {
         "instrumentTheme": "five"
       },
@@ -158,7 +438,7 @@
     },
     {
       "key": "five_fullRangeKm",
-      "label": "Five Dial / Full range for arc",
+      "label": "Porsche / Full range for arc",
       "type": "choice",
       "default": "800",
       "when": {
@@ -189,13 +469,25 @@
     },
     {
       "key": "five_leftOuter",
-      "label": "Five Dial / Left outer",
+      "label": "Porsche / Left outer",
       "type": "choice",
-      "default": "coolant",
+      "default": "battery",
       "when": {
         "instrumentTheme": "five"
       },
       "options": [
+        [
+          "battery",
+          "12 V battery"
+        ],
+        [
+          "analogueSpeed",
+          "Speedometer"
+        ],
+        [
+          "coolantGauge",
+          "Coolant gauge"
+        ],
         [
           "coolant",
           "Coolant"
@@ -224,9 +516,9 @@
     },
     {
       "key": "five_leftInner",
-      "label": "Five Dial / Left inner",
+      "label": "Porsche / Left inner",
       "type": "choice",
-      "default": "media",
+      "default": "analogueSpeed",
       "when": {
         "instrumentTheme": "five"
       },
@@ -234,6 +526,22 @@
         "g": "tyres"
       },
       "options": [
+        [
+          "battery",
+          "12 V battery"
+        ],
+        [
+          "analogueSpeed",
+          "Speedometer"
+        ],
+        [
+          "oilGauges",
+          "Oil pressure & temp"
+        ],
+        [
+          "coolantGauge",
+          "Coolant gauge"
+        ],
         [
           "media",
           "Now playing"
@@ -278,9 +586,9 @@
     },
     {
       "key": "five_rightInner",
-      "label": "Five Dial / Right inner",
+      "label": "Porsche / Right inner",
       "type": "choice",
-      "default": "waze",
+      "default": "oilGauges",
       "when": {
         "instrumentTheme": "five"
       },
@@ -288,6 +596,22 @@
         "g": "tyres"
       },
       "options": [
+        [
+          "battery",
+          "12 V battery"
+        ],
+        [
+          "analogueSpeed",
+          "Speedometer"
+        ],
+        [
+          "oilGauges",
+          "Oil pressure & temp"
+        ],
+        [
+          "coolantGauge",
+          "Coolant gauge"
+        ],
         [
           "media",
           "Now playing"
@@ -332,13 +656,25 @@
     },
     {
       "key": "five_rightOuter",
-      "label": "Five Dial / Right outer",
+      "label": "Porsche / Right outer",
       "type": "choice",
-      "default": "oil",
+      "default": "coolantGauge",
       "when": {
         "instrumentTheme": "five"
       },
       "options": [
+        [
+          "battery",
+          "12 V battery"
+        ],
+        [
+          "analogueSpeed",
+          "Speedometer"
+        ],
+        [
+          "coolantGauge",
+          "Coolant gauge"
+        ],
         [
           "coolant",
           "Coolant"
@@ -367,7 +703,7 @@
     },
     {
       "key": "five_fallback",
-      "label": "Five Dial / Waze fallback",
+      "label": "Porsche / Waze fallback",
       "type": "choice",
       "default": "temps",
       "when": {
@@ -388,8 +724,78 @@
       ]
     },
     {
+      "key": "silver_faceColour",
+      "label": "Rolls Royce / Face colour",
+      "type": "choice",
+      "default": "silver",
+      "when": {
+        "instrumentTheme": "silver"
+      },
+      "options": [
+        [
+          "silver",
+          "Silver Grey Bright"
+        ],
+        [
+          "amethyst",
+          "Amethyst Purple"
+        ],
+        [
+          "cuprite",
+          "Cuprite Red"
+        ],
+        [
+          "chalcedon",
+          "Chalcedon Blue"
+        ],
+        [
+          "lapis",
+          "Lapis Blue"
+        ],
+        [
+          "fireOpal",
+          "Fire Opal Orange"
+        ],
+        [
+          "gold",
+          "Gold"
+        ],
+        [
+          "citrine",
+          "Citrine Yellow"
+        ],
+        [
+          "jade",
+          "Jade Green"
+        ],
+        [
+          "peridot",
+          "Peridot Green"
+        ]
+      ]
+    },
+    {
+      "key": "silver_needleEffect",
+      "label": "Rolls Royce / Needle effect",
+      "type": "choice",
+      "default": "classic",
+      "when": {
+        "instrumentTheme": "silver"
+      },
+      "options": [
+        [
+          "classic",
+          "Classic"
+        ],
+        [
+          "starlight",
+          "Starlight"
+        ]
+      ]
+    },
+    {
       "key": "silver_leftInner",
-      "label": "Silver Trio / Left dial",
+      "label": "Rolls Royce / Left dial",
       "type": "choice",
       "default": "rpm",
       "when": {
@@ -447,7 +853,7 @@
     },
     {
       "key": "silver_rightInner",
-      "label": "Silver Trio / Right dial",
+      "label": "Rolls Royce / Right dial",
       "type": "choice",
       "default": "fuelRange",
       "when": {
@@ -505,7 +911,7 @@
     },
     {
       "key": "silver_fallback",
-      "label": "Silver Trio / Waze fallback",
+      "label": "Rolls Royce / Waze fallback",
       "type": "choice",
       "default": "temps",
       "when": {
